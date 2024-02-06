@@ -1,0 +1,140 @@
+{
+    "cl": [
+        {
+            "type": "DOC",
+            "IsMainCL": true,
+            "ShardingKey": {
+                "MainCL": {"RECEIVE_TIME":"$YYYYmmdd"},
+                "SubCL": {"CONTENT_ID":1},
+                "NormalCL": ""
+            },
+            "ShardingKeyType": {
+                "MainCL": "range",
+                "SubCL": "hash",
+                "NormalCL": ""
+            },
+            "ReplSize": 2,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": "",
+            "include_max": false
+        },
+        {
+            "type": "FILE",
+            "IsMainCL": true,
+            "ShardingKey": {
+                "MainCL": {"RECEIVE_TIME":"$YYYYmmdd"},
+                "SubCL": {"CONTENT_ID":1},
+                "NormalCL": ""
+            },
+            "ShardingKeyType": {
+                "MainCL": "range",
+                "SubCL": "hash",
+                "NormalCL": ""
+            },
+            "ReplSize": 2,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": "",
+            "include_max": false
+        },
+        {
+            "type": "LOB",
+            "IsMainCL": false,
+            "ShardingKey": {
+                "MainCL": "",
+                "SubCL": "",
+                "NormalCL": {"_id":1}
+            },
+            "ShardingKeyType": {
+                "MainCL": "",
+                "SubCL": "",
+                "NormalCL": "hash"
+            },
+            "ReplSize": 2,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": "",
+            "include_max": false
+        },
+        {
+            "type": "TEST",
+            "IsMainCL": true,
+            "ShardingKey": {
+                "MainCL": "date",
+                "SubCL": {"_id":1},
+                "NormalCL": ""
+            },
+            "ShardingKeyType": {
+                "MainCL": "range",
+                "SubCL": "hash",
+                "NormalCL": ""
+            },
+            "ReplSize": 2,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": "YYYYMMDD",
+            "include_max": false
+        }
+    ],
+    "index": [
+        {
+            "type": "DOC",
+            "index": [
+                {
+                    "name": "primary_index",
+                    "def": "{CONTENT_ID:1,VERSION:1,GROUP_ID:1}",
+                    "unique": true,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                },
+                {
+                    "name": "index1",
+                    "def": "{CONTENT_ID:1}",
+                    "unique": false,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                }
+            ]
+        },
+        {
+            "type": "FILE",
+            "index": [
+                {
+                    "name": "primary_index",
+                    "def": "{CONTENT_ID:1,VERSION:1,GROUP_ID:1}",
+                    "unique": true,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                },
+                {
+                    "name": "index1",
+                    "def": "{CONTENT_ID:1}",
+                    "unique": false,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                }
+            ]
+        }
+    ]
+}
