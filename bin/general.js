@@ -48,6 +48,10 @@ const logger = {
         log.write(info + " \n");
     },
     // content 日志内容
+    debug: function (content) {
+        this.write("DEBUG", content);
+    },
+    // content 日志内容
     info: function (content) {
         this.write("INFO", content);
     },

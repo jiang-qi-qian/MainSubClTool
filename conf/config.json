@@ -4,7 +4,7 @@
             "type": "DOC",
             "IsMainCL": true,
             "ShardingKey": {
-                "MainCL": {"RECEIVE_TIME":"$YYYYmmdd"},
+                "MainCL": {"RECEIVE_TIME":1},
                 "SubCL": {"CONTENT_ID":1},
                 "NormalCL": ""
             },
@@ -20,14 +20,13 @@
             "EnsureShardingIndex": false,
             "StrictDataMode": true,
             "AutoIncrement": "",
-            "LobShardingKeyFormat": "",
-            "include_max": false
+            "LobShardingKeyFormat": ""
         },
         {
             "type": "FILE",
             "IsMainCL": true,
             "ShardingKey": {
-                "MainCL": {"RECEIVE_TIME":"$YYYYmmdd"},
+                "MainCL": {"RECEIVE_TIME":1},
                 "SubCL": {"CONTENT_ID":1},
                 "NormalCL": ""
             },
@@ -43,8 +42,7 @@
             "EnsureShardingIndex": false,
             "StrictDataMode": true,
             "AutoIncrement": "",
-            "LobShardingKeyFormat": "",
-            "include_max": false
+            "LobShardingKeyFormat": ""
         },
         {
             "type": "LOB",
@@ -66,14 +64,13 @@
             "EnsureShardingIndex": false,
             "StrictDataMode": true,
             "AutoIncrement": "",
-            "LobShardingKeyFormat": "",
-            "include_max": false
+            "LobShardingKeyFormat": ""
         },
         {
             "type": "TEST",
             "IsMainCL": true,
             "ShardingKey": {
-                "MainCL": "date",
+                "MainCL": {"date":1},
                 "SubCL": {"_id":1},
                 "NormalCL": ""
             },
@@ -89,13 +86,13 @@
             "EnsureShardingIndex": false,
             "StrictDataMode": true,
             "AutoIncrement": "",
-            "LobShardingKeyFormat": "YYYYMMDD",
-            "include_max": false
+            "LobShardingKeyFormat": "YYYYMMDD"
         }
     ],
     "index": [
         {
             "type": "DOC",
+            "mainCLNeedCreate": false,
             "index": [
                 {
                     "name": "primary_index",
@@ -117,6 +114,7 @@
         },
         {
             "type": "FILE",
+            "mainCLNeedCreate": false,
             "index": [
                 {
                     "name": "primary_index",

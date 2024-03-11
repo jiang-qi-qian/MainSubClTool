@@ -2,9 +2,8 @@
 if (typeof MODE == "undefined" || MODE == null || MODE == "") {
     var MODE = "test";
 }
+
 var DOMIANCSV = "conf/domain.csv";
-
-
 var TOOL = "create_domain";
 importOnce("./args.js");
 importOnce("./general.js");
@@ -44,13 +43,13 @@ function createDomain() {
                 if (-214 == e) {
                     try {
                         db.createDomain(domainName, groupArray, { AutoSplit: true });
-                        logger.info("Create domain [" + domainName + "(" + groupArray + ")] success");
+                        logger.info("创建域 [" + domainName + "(" + groupArray + ")] 成功");
                     } catch (error) {
-                        logger.except("Failed to init the domain [" + domainName + "]", error);
+                        logger.except("创建域 [" + domainName + "(" + groupArray + ")] 失败", error);
                         throw error;
                     }
                 } else {
-                    logger.except("Failed to init the domain [" + domainName + "]", e);
+                    logger.except("获取域 [" + domainName + "] 信息失败", e);
                     throw e;
                 }
             }
@@ -59,29 +58,30 @@ function createDomain() {
             try {
                 let cs_num = db.getDomain(domainName).listCollectionSpaces().size();
                 if (cs_num != 0){
-                    logger.error("The domain [" + domainName + "] cannot be deleted because the number of CS in the domain is not zero");
+                    logger.error("无法删除域 [" + domainName + "]，因为域中还存在 CS");
                     continue;
                 }
                 try {
                     db.dropDomain(domainName);
-                    logger.info("Drop domain [" + domainName + "(" + groupArray + ")] success...");
+                    logger.info("删除域 [" + domainName + "] 成功");
                 } catch (error) {
-                    logger.except("Failed to drop the domain [" + domainName + "]", error);
+                    logger.except("删除域 [" + domainName + "] 失败", error);
                     throw error;
                 }
             } catch (e) {
                 if (-214 == e) {
-                    logger.warn("Domain [" + domainName + "(" + groupArray + ")] is not exists");
+                    // 忽略
+                    // logger.warn("域 [" + domainName + "(" + groupArray + ")] 不存在");
                 } else {
-                    logger.except("Failed to check if the domain [" + domainName + "] exists", e);
+                    logger.except("无法检查域 [" + domainName + "] 是否存在", e);
                     throw e;
                 }
             }
         // 测试
         } else if (MODE == "test") {
-            logger.info("Create " + domainName + " with groups (" + groupArray + ")");
+            logger.info("域名: " + domainName + "，组: (" + groupArray + ")");
         } else {
-            let content = "Unknown mode: " + MODE;
+            let content = "未知的 MODE: " + MODE;
             logger.error(content);
             throw new Error(content);
         }
@@ -93,7 +93,6 @@ function createDomain() {
 */
 
 function main() {
-    logger.info("MODE is " + MODE);
     createDomain();
 }
 
