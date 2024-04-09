@@ -1,30 +1,59 @@
-// 执行为 run，本工具用于检查，没有回滚功能MAIN
+// 收集快照数据为 collect, 执行分析为 run，本工具用于检查，没有回滚功能
 if (typeof MODE == "undefined" || MODE == null || MODE == "") {
-    var MODE = "test";
+    var MODE = "collect";
 }
 
-// ------------ 外部参数，大部分情况下不需要修改 ------------
-// 可实现从客户通过内置 SQL 拿回的 $SNAPSHOT_CL,$SNAPSHOT_CS,$SNAPSHOT_CATA 到本地处理数据
-var USELOCAL = false;
-// 如果 useLocal 为 true，需要修改下面三个表名为对应已有数据的表名
-var LOCALCATA = "db1.cata";
-var LOCALCL = "db1.cl";
-var LOCALCS = "db1.cs";
+// ------------ 外部参数，根据实际情况修改 ------------
+// 找最后一张表时是否跳过空表，默认为 true
+var SKIPEMPTYBYLASTCL = true;
 
+// 每收集/输出多少条记录，打印一次信息，默认值为 10000
+var INFOOUTPUTONCE = 10000;
+
+// 计算数值后保留多少位小数，默认值为 4
+var FIXNUM = 4;
+
+// MAX - MIN 差大于此值才会计算 MAX/MIN，单位为 M，默认值为 100
+var MAX_MIN = 100;
+
+// ------------ 外部参数，大部分情况下不需要修改 ------------
+// 收集快照信息文件路径，在 collect 模式中为写入，在 run 模式中为读取
+var SNAPSHOTCATAFILE = "output/snapshot_cata.out";
+var SNAPSHOTCLFILE = "output/snapshot_cl.out";
+var SNAPSHOTCSFILE = "output/snapshot_cs.out";
+var LISTCSFILE = "output/list_cs.out";
+var SNAPSHOTSYSTEMFILE = "output/snapshot_system.out";
+
+SNAPSHOTCATAFILE = "/data/code/cl_tool/shanghai/20240403_inspect/snapshotcata.txt";
+SNAPSHOTCLFILE = "/data/code/cl_tool/shanghai/20240403_inspect/snapshotcl.txt";
+LISTCSFILE = "/data/code/cl_tool/shanghai/20240403_inspect/listcs.txt";
+
+// 读取的文件路径
+var CONFIGJSON = "conf/config.json";
+var MODELDIR = "conf/model/";
+
+// 输出的文件路径
+var CLCSV = "output/information_by_cl.csv";
+var CLTYPECSV = "output/information_by_cl_type.csv";
+var CURRENTMODELJSON = "output/current_model.json";
+var ADDCLCSV = "output/add_cl.csv";
+
+// 用于存储原始的快照信息
 var SNAPSHOTCATANAME = "SNAPSHOT_CATA";
 var SNAPSHOTCLNAME = "SNAPSHOT_CL";
 var SNAPSHOTCSNAME = "SNAPSHOT_CS";
+var LISTCSNAME = "LIST_CS";
 
-// 中途临时存储数据的 CL 名
+// 中途临时存储数据的 CL 名。最后会删除
 // 存储从 SNAPSHOT_CATA 正则匹配命中的 CL 名的 CATA 信息
 var MATCHCATANAME = "MATCH_CATA"
 // 存储从 SNAPSHOT_CL 匹配命中的 CL 名的 CL 信息
 var MATCHCLNAME = "MATCH_CL"
-// 混合 SNAPSHOT_CS 和 SNAPSHOT_Cl 配置的表
+// 混合 LIST_CS 和 SNAPSHOT_CL 配置的表
 var HYBRIDCSCLNAME = "HYBRID_CS_CL"
 // CL 每个组的数据量大小
 var GROUPSIZENAME = "GROUP_SIZE";
-// CL 级数据量大小，包括 MAX MIN
+// CL 级数据量大小，包括 MAX MIN 表
 var CLSIZENAME = "CL_SIZE";
 // 记录了表与最后一张表关系
 var LASTCLNAME = "LAST_CL";
@@ -32,43 +61,17 @@ var LASTCLNAME = "LAST_CL";
 var TMPCLNAME = "TMP";
 // 存储主表名和对应子表的查找条件
 var SUBCLFINDCONDCLNAME = "SUB_CL_FIND_COND"; 
-// 存储 CS 与 DOMAIN 的关系;
-var CSDOAMINNAME = "CS_DOMAIN";
 // 记录了主表与MAX表的关系
 var MAINMAXNAME = "MAIN_MAX"
 // 扩展表信息
 var EXTENDCLNAME = "EXTEND_CL";
-// 最终准输出的表
+// 最终输出的表
 var OUTOUTCLNAME = "OUTPUT";
-
-var DETAILINFOCLNAME = "INFO_DETAIL";
-
-// 每收集多少张表就打印一次信息
-var CLOUTPUTONCE = 50;
-// 每收集输出多少条记录到文件就打印一次信息
-var INFOOUTPUTONCE = 200;
-
-// 计算数值后保留多少位小数
-var FIXNUM = 4;
-
-// MAX - MIN 差大于此值才会计算 MAX/MIN，单位为 M，默认值为 100，正式使用不需要改，留个变量设置为 0 用于测试
-var MAX_MIN = 100;
-
-// 读取的文件路径
-var CONFIGJSON = "conf/config.json";
-var MODELDIR = "conf/model/";
-
-// 输出的文件路径
-var CLCSV = "output/infomation_by_cl.csv";
-var CLTYPECSV = "output/infomation_by_cl_type.csv";
-var CURRENTMODELJSON = "output/current_model.json";
-var ADDCLCSV = "conf/add_cl.csv";
+// 上面表的数组，用于对非空的 DATACS 做检查
+var TOOLCLARRAY = [SNAPSHOTCATANAME,SNAPSHOTCLNAME,SNAPSHOTCSNAME,LISTCSNAME,MATCHCATANAME,MATCHCLNAME,HYBRIDCSCLNAME,GROUPSIZENAME,CLSIZENAME,LASTCLNAME,TMPCLNAME,SUBCLFINDCONDCLNAME,MAINMAXNAME,EXTENDCLNAME,OUTOUTCLNAME];
 
 // 日期长度，用于把主表 range 切分键的时间字符串转换为时间，默认兼容 20240101 和 20240101000000 两种格式
 var DATEFORMAT = { year: 4, month: 6, day: 8, hour: 10, minute: 12, second: 14};
-
-// 普通表默认时间间隔，用于仅有一张普通 LOB 表，无法自动推算出间隔时；如果是分区表，会从上下界推算，不使用该值
-var DEFAULTTIMEINTERVALOBJ = {"diffYear": 1, "diffMonth": 0, "diffDay": 0};
 
 // ------------ 内部变量，不要修改 ------------
 var TOOL = "check_model";
@@ -77,22 +80,29 @@ var EXTENDCLCOUNT = {};
 var INCLUDEMAXRANGE = false;
 importOnce("./args.js");
 importOnce("./general.js");
+// 排序，把长的条件放在前面
+DATE_FORMAT_ARRAY.sort(function(a,b){return a.length < b.length});
 
 function changDate(str) {
+    let retArray = [];
     if (str.search("\\$DATE") == -1) {
-        return [str];
+        let dateStr = str.replace(new RegExp("\\$YYYY", "ig"), "[1-2]\\d{3}");
+        dateStr = dateStr.replace(new RegExp("\\$MM", "ig"), "[0-1][0-9]");
+        dateStr = dateStr.replace(new RegExp("\\$dd", "ig"), "[0-3][0-9]");
+        retArray.push(dateStr);
+    } else {
+        for (let i = 0; i < DATE_FORMAT_ARRAY.length; i++) {
+            let dateStr = DATE_FORMAT_ARRAY[i].replace(new RegExp("\\$YYYY", "i"), "[1-2]\\d{3}");
+            dateStr = dateStr.replace("$MM", "[0-1][0-9]");
+            dateStr = dateStr.replace(new RegExp("\\$dd", "i"), "[0-3][0-9]");
+            // 不支持 时分秒
+            // dateStr = dateStr.replace(new RegExp("HH", "i"), "[0-2][0-9]");
+            // dateStr = dateStr.replace("mm", "[0-5][0-9]");
+            // dateStr = dateStr.replace(new RegExp("ss", "i"), "[0-5][0-9]");
+            retArray.push(str.replace(new RegExp("\\$DATE", "g"), dateStr));
+        }
     }
 
-    let retArray = [];
-    for (let i = 0; i < DATE_FORMAT_ARRAY.length; i++) {
-        let dateStr = DATE_FORMAT_ARRAY[i].replace(new RegExp("\\$YYYY", "i"), "[1-2]\\d{3}");
-        dateStr = dateStr.replace("$MM", "[0-1][0-9]");
-        dateStr = dateStr.replace(new RegExp("\\$dd", "i"), "[0-3][0-9]");
-        // dateStr = dateStr.replace(new RegExp("HH", "i"), "[0-2][0-9]");
-        // dateStr = dateStr.replace("mm", "[0-5][0-9]");
-        // dateStr = dateStr.replace(new RegExp("ss", "i"), "[0-5][0-9]");
-        retArray.push(str.replace(new RegExp("\\$DATE", "g"), dateStr));
-    }
     return retArray;
 }
 
@@ -108,6 +118,7 @@ function findCL(CLNameArray, type) {
             logger.error(content);
             throw new Error(content);
         }
+        logger.info('正在解析 ' + CLtype + ' 表，条件为: ' + CLNameObj[CLtype]);
         let cs = nameArray[0];
         let cl = nameArray[1];
         let csArray = cs.split('$APPNAME');
@@ -116,25 +127,38 @@ function findCL(CLNameArray, type) {
             let content = "bin/args.js 文件中 [" + JSON.stringify(CLNameObj) + "] 格式有问题，目前 CS 或 CL 中只能有一个 $APPNAME";
             logger.error(content);
             throw new Error(content);
-        } else if (clArray.length < 2) {
-            let content = "bin/args.js 文件中 [" + JSON.stringify(CLNameObj) + "] 格式有问题，目前必须要求 CL 中有一个 $APPNAME";
-            logger.error(content);
-            throw new Error(content);
         }
+
         let cs_prefix;
         let cs_suffix;
-        let cl_prefix = clArray[0];
-        let cl_suffix = clArray[1];
+        let cl_prefix;
+        let cl_suffix;
         let regexStr = "";
 
-        if (csArray.length == 2) {
+        if (csArray.length == 2 && clArray.length == 2) {
             cs_prefix = csArray[0];
             cs_suffix = csArray[1];
+            cl_prefix = clArray[0];
+            cl_suffix = clArray[1];
+            // '^(?!.*LOB)([^.]*).\\1$' 避免匹配 $APPNAME.$APPNAME 时错误匹配 $APPNAME_LOB_XXXX.$APPNAME_LOB_XXXX
+            //regexStr = "^(?!.*LOB)" + cs_prefix + "([^\.]*)" + cs_suffix + "\." + cl_prefix + "\\1" + cl_suffix + "$"
             regexStr = "^" + cs_prefix + "([^\.]*)" + cs_suffix + "\." + cl_prefix + "\\1" + cl_suffix + "$"
-        } else {
+        } else if (csArray.length == 1 && clArray.length == 2) {
             cs_prefix = csArray[0];
             cs_suffix = "";
+            cl_prefix = clArray[0];
+            cl_suffix = clArray[1];
             regexStr = "^" + cs_prefix + cs_suffix + "\." + cl_prefix + "(.*?)" + cl_suffix + "$"
+        } else if (csArray.length == 2 && clArray.length == 1) {
+            cs_prefix = csArray[0];
+            cs_suffix = csArray[1];
+            cl_prefix = clArray[0];
+            cl_suffix = "";
+            regexStr = "^" + cs_prefix + "([^\.]*)" + cs_suffix + "\." + cl_prefix + cl_suffix + "$"
+        } else {
+            let content = "bin/args.js 文件中 [" + JSON.stringify(CLNameObj) + "] 格式有问题，未找到 $APPNAME 关键字";
+            logger.error(content);
+            throw new Error(content);
         }
         
         //logger.debug(regexStr);
@@ -144,38 +168,42 @@ function findCL(CLNameArray, type) {
         let snapshotCataCL = db.getCS(DATACS).getCL(SNAPSHOTCATANAME);
         let matchCL = db.getCS(DATACS).getCL(MATCHCATANAME);
         for (let j = 0; j < condArray.length; j++) {
+            //logger.debug(condArray[j]);
             let cursor;
             try {
                 cursor = snapshotCataCL.find({Name: {"$regex": condArray[j]}});
-                //cursor = db.list(4,{Name: {"$regex": condArray[j]}},{Name:1});
             } catch (error) {
                 logger.except("查询 " + DATACS + "." + SNAPSHOTCATANAME + ".find(4,{Name:{\"$regex\":\"" + condArray[j] + "\"}}.{Name:1}}) 失败", error);
                 throw error;
             }
     
             let size = 0;
-            while (cursor.next()) {
-                size++;
-                let current = cursor.current().toObj();
-                let CLName = current['Name'];
-                let appName = CLName.replace(new RegExp(condArray[j]),"$1");
-                // 写入表
-                try {
-                    //logger.debug(appName + " " + condArray[j]);
-                    current['appName'] = appName;
+            try {
+                while (cursor.next()) {
+                    size++;
+                    let current;
+                    try {
+                        current = cursor.current().toObj();
+                    } catch (error) {
+                        logger.except("获取表 [" + DATACS + "." + SNAPSHOTCATANAME + "] 中数据失败", error);
+                    }
+                    current['appName'] = current['Name'].replace(new RegExp(condArray[j]),"$1");
                     current['findCondition'] = CLNameObj[CLtype];
                     current['modelType'] = CLtype;
-                    //current['isFind'] = false;
                     delete current._id;
-                    matchCL.insert(current);
-                } catch (error) {
-                    logger.except("往表 [" + DATACS + "." + MATCHCATANAME + "] 中插入数据失败", error);
-                    throw error;
+                    try {
+                        matchCL.insert(current);
+                    } catch (error) {
+                        logger.except("往表 [" + DATACS + "." + MATCHCATANAME + "] 中插入数据失败", error);
+                    }
                 }
+            } catch (error) {
+                throw error;
+            } finally {
+                cursor.close();
             }
             //logger.debug(condArray[j] + " " + size);
             sizeObj[condArray[j]] = size;
-            cursor.close();
         }
     }
 
@@ -188,38 +216,48 @@ function findCL(CLNameArray, type) {
         let cursor;
         execTime = 0;
         try {
-            cursor = db.exec('select t1.Name,t1.findCondition as cond1,t2.findCondition as cond2 from ' + DATACS + "." + MATCHCATANAME + ' as t1 inner join ' + DATACS + "." + MATCHCATANAME + ' as t2 on t1.Name = t2.Name where t1.findCondition <> t2.findCondition group by t1.Name');
+            cursor = db.exec('select t1.Name,t1.findCondition as cond1,t2.findCondition as cond2 from ' + DATACS + "." + MATCHCATANAME + ' as t1 inner join ' + DATACS + "." + MATCHCATANAME + ' as t2 on t1.Name = t2.Name where t1.findCondition <> t2.findCondition group by t1.Name /*+use_hash()*/');
         } catch (error) {
             logger.except("查找是否有不同的条件匹配到相同的表失败", error);
             throw error;
         }
-        while(cursor.next()) {
-            execTime++;
-            let current = cursor.current().toObj();
-            try {
-                //logger.debug(current.cond1 + " " + current.cond2);
-                // 优先匹配少的
-                if (sizeObj[current.cond1] > sizeObj[current.cond2]) {
-                    //logger.debug(current.CLName + " 1 " + current.cond1);
-                    matchCL.remove({$and:[{"Name":{$et:current.CLName}},{"findCondition":{$et:current.cond1}}]});
-                } else if (sizeObj[current.cond1] > sizeObj[current.cond2]) {
-                    //logger.debug(current.CLName + " 2 " + current.cond1);
-                    matchCL.remove({$and:[{"Name":{$et:current.CLName}},{"findCondition":{$et:current.cond1}}]});
-                // 如果匹配数一样（应该不可能），选长的
-                } else if (sizeObj[current.cond1] == sizeObj[current.cond2] && current.cond1.length < current.cond2.length) {
-                    //logger.debug(current.CLName + " 3 " + current.cond1);
-                    matchCL.remove({$and:[{"Name":{$et:current.CLName}},{"findCondition":{$et:current.cond1}}]});
-                // 选第二个(短)
-                } else {
-                    //logger.debug(current.CLName + " 4 " + current.cond2);
-                    matchCL.remove({$and:[{"Name":{$et:current.CLName}},{"findCondition":{$et:current.cond2}}]});
+        try {
+            while(cursor.next()) {
+                execTime++;
+                let current;
+                try {
+                    current = cursor.current().toObj();
+                } catch (error) {
+                    logger.except("获取表 [" + DATACS + "." + MATCHCATANAME + "] 中数据失败", error);
+                    throw error;
                 }
-            } catch (error) {
-                logger.except("删除表 [" + DATACS + "." + MATCHCATANAME + "] 中重复匹配数据失败", error);
-                throw error;
+                try {
+                    // 优先匹配少的
+                    if (sizeObj[current.cond1] > sizeObj[current.cond2]) {
+                        //logger.debug(current.Name + " 1 " + current.cond1);
+                        matchCL.remove({$and:[{"Name":{$et:current.Name}},{"findCondition":{$et:current.cond1}}]});
+                    } else if (sizeObj[current.cond1] > sizeObj[current.cond2]) {
+                        //logger.debug(current.Name + " 2 " + current.cond1);
+                        matchCL.remove({$and:[{"Name":{$et:current.Name}},{"findCondition":{$et:current.cond1}}]});
+                    // 如果匹配数一样（应该不可能），选长的
+                    } else if (sizeObj[current.cond1] == sizeObj[current.cond2] && current.cond1.length < current.cond2.length) {
+                        //logger.debug(current.Name + " 3 " + current.cond1);
+                        matchCL.remove({$and:[{"Name":{$et:current.Name}},{"findCondition":{$et:current.cond1}}]});
+                    // 选第二个(短)
+                    } else {
+                        //logger.debug(current.Name + " 4 " + current.cond2);
+                        matchCL.remove({$and:[{"Name":{$et:current.Name}},{"findCondition":{$et:current.cond2}}]});
+                    }
+                } catch (error) {
+                    logger.except("删除表 [" + DATACS + "." + MATCHCATANAME + "] 中重复匹配数据失败", error);
+                    throw error;
+                }
             }
+        } catch (error) {
+            throw error;
+        } finally {
+            cursor.close();
         }
-        cursor.close();
     }
 
     let retSize = 0;
@@ -235,28 +273,32 @@ function findCL(CLNameArray, type) {
                 break;
         }
     } catch (error) {
-        logger.except("从表 [" + DATACS + "." + MATCHCATANAME + "] 中或者表个数失败", error);
+        logger.except("从表 [" + DATACS + "." + MATCHCATANAME + "] 中获取命中的表个数失败", error);
         throw error;
     }
     return retSize;
 }
 
-// to YYYYMMddHHmmss
-function date2Str(date, more) {
+// to YYYY or YYYYMM or YYYYMMdd or YYYYMMddHHmmss
+function date2Str(date, length) {
     let dateStr = '' + date.getFullYear();
-    if (date.getMonth() < 9) {
-        dateStr += ('0' + (date.getMonth() + 1));
-    } else {
-        dateStr += (date.getMonth() + 1);
+    if (length >= 6) {
+        if (date.getMonth() < 9) {
+            dateStr += ('0' + (date.getMonth() + 1));
+        } else {
+            dateStr += (date.getMonth() + 1);
+        }
     }
 
-    if (date.getDate() < 10) {
-        dateStr += ('0' + date.getDate());
-    } else {
-        dateStr += date.getDate();
+    if (length >= 8) {
+        if (date.getDate() < 10) {
+            dateStr += ('0' + date.getDate());
+        } else {
+            dateStr += date.getDate();
+        }
     }
 
-    if (more != undefined && more != "" && more != false) {
+    if (length >= 14) {
         if (date.getHours() < 10) {
             dateStr += ('0' + date.getHours());
         } else {
@@ -285,9 +327,10 @@ function parseDateTime(timeStr) {
     let month = 0;
     let day = 1;
     if (timeStr.length == DATEFORMAT.month) {
-        let month = parseInt(timeStr.substring(DATEFORMAT.year, DATEFORMAT.month), 10) - 1;
+        month = parseInt(timeStr.substring(DATEFORMAT.year, DATEFORMAT.month), 10) - 1;
     }
-    if (timeStr.length == DATEFORMAT.month) {
+    if (timeStr.length == DATEFORMAT.day) {
+        month = parseInt(timeStr.substring(DATEFORMAT.year, DATEFORMAT.month), 10) - 1;
         day = parseInt(timeStr.substring(DATEFORMAT.month, DATEFORMAT.day), 10);
     }
 
@@ -310,11 +353,9 @@ function getTimeIntervalObj(lowTimeStr, upTimeStr) {
     try {
         const lowDateDate = parseDateTime(lowTimeStr);
         const upDateDate = parseDateTime(upTimeStr);
-        //logger.info(lowDateDate + " " + upDateDate);
         const diffYear = Math.abs(upDateDate.getFullYear() - lowDateDate.getFullYear());
         const diffMonth = Math.abs(upDateDate.getMonth() - lowDateDate.getMonth());
         const diffDay = Math.abs(upDateDate.getDate() - lowDateDate.getDate());
-        
         return {"diffYear": diffYear, "diffMonth": diffMonth, "diffDay": diffDay};
     } catch (error) {
         logger.except("Failed to get TimeInterval", error);
@@ -341,7 +382,6 @@ function addTimeIntervalObj(date, timeIntervalObj) {
 
 // 记录原始时间字符串
 // 按照格式生产一些列时间字符串
-// 替换
 function getExtendCLNameArray(mainCL, lastSubCLName, lastUpBound, timeIntervalObj) {
     let endTimeDate = parseDateTime(ENDTIME);
     let lastUpBoundDate = parseDateTime(lastUpBound);
@@ -353,95 +393,105 @@ function getExtendCLNameArray(mainCL, lastSubCLName, lastUpBound, timeIntervalOb
     }
     let extendCLNameArray = [];
 
-    // 根据时间格式字符串查找，逻辑是最后一个分区（除 MAX）有当前时间的年、月、日（由最小精度决定）
-    for (let i = 0; i < DATE_FORMAT_ARRAY.length; i++){
-        let dateFormat = DATE_FORMAT_ARRAY[i];
-        let csName = lastSubCLName.split('.')[0];
-        let clName = lastSubCLName.split('.')[1];
+    try {
+        // 根据时间格式字符串查找，逻辑是最后一个分区（除 MAX）有当前时间的年、月、日（由最小精度决定）
+        for (let i = 0; i < DATE_FORMAT_ARRAY.length; i++){
+            let dateFormat = DATE_FORMAT_ARRAY[i];
+            let csName = lastSubCLName.split('.')[0];
+            let clName = lastSubCLName.split('.')[1];
 
-        // 通过分区时间差倒推名字，如果分区时间差一年，那么只关心 20240101 中的 2024 ，其余不关心，但目前无法处理 240101 这种的（应该不会有客户用，有歧义）
-        // 考虑提前建了后面分区的情况，即传入的子表名为 2025，但当前为 2024
-        let newDate = new Date(curDate);
-        let CLCount = 0;
-        // 根据 EXTENDCLCOUNT 来做循环条件
-        while (newDate.getTime() < endTimeDate.getTime() || newDate.getTime() < lastUpBoundDate.getTime()) {
-            let oldDateStr = dateFormat.replace(new RegExp("\\$YYYY", "i"), newDate.getFullYear());
+            // 通过分区时间差倒推名字，如果分区时间差一年，那么只关心 20240101 中的 2024 ，其余不关心，但目前无法处理 240101 这种的（应该不会有客户用，有歧义）
+            // 考虑提前建了后面分区的情况，即传入的子表名为 2025，但当前为 2024
+            let newDate = new Date(curDate);
+            if (STARTYEAR != 0) {
+                newDate.setFullYear(STARTYEAR);
+            }
+            let CLCount = 0;
+            let isFindSubCLCond = false;
+            //logger.debug(lastSubCLName + " " + newDate + " " + endTimeDate + " " + lastUpBoundDate);
+            while (newDate.getTime() <= endTimeDate.getTime() || newDate.getTime() < lastUpBoundDate.getTime()) {
+                let oldDateStr = dateFormat.replace(new RegExp("\\$YYYY", "i"), newDate.getFullYear());
 
-            // 获取现有表名中需要替换的老字符串
-            let month = "";
-            let day = "";
-            // 补齐月份和日期的0
-            if (newDate.getMonth() < 9) {
-                month += ('0' + (newDate.getMonth() + 1));
-            } else {
-                month += (newDate.getMonth() + 1);
-            }
-            if (newDate.getDate() < 10) {
-                day += ('0' + newDate.getDate());
-            } else {
-                day += newDate.getDate();
-            }
-            oldDateStr = oldDateStr.replace("$MM", month);
-            oldDateStr = oldDateStr.replace(new RegExp("\\$dd", "i"), day);
-
-            // 更新日期
-            newDate = addTimeIntervalObj(newDate, timeIntervalObj);
-            // 替换新字符串中时间
-            let newDateStr = dateFormat.replace(new RegExp("\\$YYYY", "i"), newDate.getFullYear());
-            // 补齐月份和日期的0
-            month = "";
-            day = "";
-            if (newDate.getMonth() < 9) {
-                month += ('0' + (newDate.getMonth() + 1));
-            } else {
-                month += (newDate.getMonth() + 1);
-            }
-            if (newDate.getDate() < 10) {
-                day += ('0' + newDate.getDate());
-            } else {
-                day += newDate.getDate();
-            }
-            newDateStr = newDateStr.replace("$MM", month);
-            newDateStr = newDateStr.replace(new RegExp("\\$dd", "i"), day);
-            //logger.info(oldDateStr + " " + newDateStr);
-            if (-1 != csName.search(oldDateStr) || -1 != clName.search(oldDateStr)) {
-                csName = csName.replace(oldDateStr, newDateStr);
-                clName = clName.replace(oldDateStr, newDateStr);
-                //logger.info(EXTENDCLCOUNT[lastSubCLName]);
-                if (CLCount < EXTENDCLCOUNT[lastSubCLName] || lastUpBound == "") {
-                    extendCLNameArray.push(csName + '.' + clName);
+                // 获取现有表名中需要替换的老字符串
+                let month = "";
+                let day = "";
+                // 补齐月份和日期的0
+                if (newDate.getMonth() < 9) {
+                    month += ('0' + (newDate.getMonth() + 1));
+                } else {
+                    month += (newDate.getMonth() + 1);
                 }
-
-                //logger.info("扩展子表名: " + csName + '.' + clName + " " + CLCount);
-                // 获取模型中时间格式
-                let modelDateFormat = "$YYYY";
-                if (timeIntervalObj.month) {
-                    modelDateFormat += "$MM";
+                if (newDate.getDate() < 10) {
+                    day += ('0' + newDate.getDate());
+                } else {
+                    day += newDate.getDate();
                 }
-                if (timeIntervalObj.day) {
-                    modelDateFormat += "$dd";
-                }
+                oldDateStr = oldDateStr.replace("$MM", month);
+                oldDateStr = oldDateStr.replace(new RegExp("\\$dd", "i"), day);
 
-                if (mainCL != "") {
-                    //logger.debug(mainCL)
-                    try {
-                        // 对 $APPNAME 的替换后移到输出时，这里拿 $APPNAME 不方便
-                        //let findCondition = lastSubCLName.replace(new RegExp(current.appName, 'g'), "$APPNAME").replace(new RegExp(oldDateStr, 'g'), modelDateFormat);
-                        let findCondition = lastSubCLName.replace(new RegExp(oldDateStr, 'g'), modelDateFormat);
-                        db.getCS(DATACS).getCL(SUBCLFINDCONDCLNAME).insert({"mainCLName":mainCL,"subCLFindCondtiton":findCondition});
-                    } catch (error) {
-                        logger.except("往表 [" + DATACS + "." + SUBCLFINDCONDCLNAME + "] 中插入子表查询条件失败", error);
-                        throw error;
+                // 更新日期
+                newDate = addTimeIntervalObj(newDate, timeIntervalObj);
+                // 替换新字符串中时间
+                let newDateStr = dateFormat.replace(new RegExp("\\$YYYY", "i"), newDate.getFullYear());
+                // 补齐月份和日期的0
+                month = "";
+                day = "";
+                if (newDate.getMonth() < 9) {
+                    month += ('0' + (newDate.getMonth() + 1));
+                } else {
+                    month += (newDate.getMonth() + 1);
+                }
+                if (newDate.getDate() < 10) {
+                    day += ('0' + newDate.getDate());
+                } else {
+                    day += newDate.getDate();
+                }
+                newDateStr = newDateStr.replace("$MM", month);
+                newDateStr = newDateStr.replace(new RegExp("\\$dd", "i"), day);
+                //logger.debug(lastSubCLName + " " + oldDateStr + " " + newDateStr);
+                if ((-1 != csName.search(oldDateStr) || -1 != clName.search(oldDateStr)) && oldDateStr != newDateStr) {
+                    //logger.debug(lastSubCLName + " " + oldDateStr + " " + newDateStr);
+                    csName = csName.replace(oldDateStr, newDateStr);
+                    clName = clName.replace(oldDateStr, newDateStr);
+                    //logger.debug(EXTENDCLCOUNT[lastSubCLName]);
+                    if (CLCount < EXTENDCLCOUNT[lastSubCLName] || lastUpBound == "") {
+                        extendCLNameArray.push(csName + '.' + clName);
                     }
+
+                    //logger.debug("扩展子表名: " + csName + '.' + clName + " " + CLCount);
+                    // 获取模型中时间格式
+                    let modelDateFormat = "$YYYY";
+                    if (timeIntervalObj.diffMonth) {
+                        modelDateFormat += "$MM";
+                    }
+                    if (timeIntervalObj.diffDay) {
+                        modelDateFormat += "$dd";
+                    }
+                    
+                    if (mainCL != "" && !isFindSubCLCond) {
+                        // 一个表只需要找一次条件
+                        isFindSubCLCond = true;
+                        try {
+                            // 对 $APPNAME 的替换后移到输出时，这里拿 $APPNAME 不方便
+                            let findCondition = lastSubCLName.replace(new RegExp(oldDateStr, 'g'), modelDateFormat);
+                            //logger.debug("timeIntervalObj " + JSON.stringify(timeIntervalObj) + " lastSubCLName " + lastSubCLName + " mainCLName " + mainCL + " oldDateStr " + oldDateStr + " subCLFindCondtiton " + findCondition + " modelDateFormat " + modelDateFormat);
+                            db.getCS(DATACS).getCL(SUBCLFINDCONDCLNAME).insert({"mainCLName":mainCL,"subCLFindCondtiton":findCondition});
+                        } catch (error) {
+                            logger.except("往表 [" + DATACS + "." + SUBCLFINDCONDCLNAME + "] 中插入子表查询条件失败", error);
+                            throw error;
+                        }
+                    }
+                    CLCount++;
                 }
-                CLCount++;
             }
         }
+    } catch (error) {
+        throw error;
     }
     return extendCLNameArray;
 }
 
-function getextendCLRangeArray(lastSubCLName, firstLowBoundStr, timeIntervalObj) {
+function getExtendCLRangeArray(lastSubCLName, firstLowBoundStr, timeIntervalObj) {
     let lowBoundDate = parseDateTime(firstLowBoundStr);
     let endTimeDate = parseDateTime(ENDTIME);
     const curDate = new Date();
@@ -453,15 +503,15 @@ function getextendCLRangeArray(lastSubCLName, firstLowBoundStr, timeIntervalObj)
 
     let extendCLRangeArray = [];
     let lowBoundStr = firstLowBoundStr;
-    let upBoundStr = date2Str(addTimeIntervalObj(lowBoundDate, timeIntervalObj));
+    let upBoundStr = date2Str(addTimeIntervalObj(lowBoundDate, timeIntervalObj),lowBoundStr.length);
     let loop = 0;
-    //logger.info(lowBoundDate + " " + endTimeDate);
-    while (lowBoundDate.getTime() < endTimeDate.getTime()) {
-        //logger.info("loop " + lowBoundDate + " " + endTimeDate);
+    //logger.debug(lowBoundDate + " " + endTimeDate);
+    while (lowBoundDate.getTime() <= endTimeDate.getTime()) {
+        //logger.debug("loop " + lowBoundStr + " " + upBoundStr);
         extendCLRangeArray.push({"LowBound":lowBoundStr, "UpBound":upBoundStr});
         lowBoundStr = upBoundStr;
         lowBoundDate = parseDateTime(upBoundStr);
-        upBoundStr = date2Str(addTimeIntervalObj(lowBoundDate, timeIntervalObj));
+        upBoundStr = date2Str(addTimeIntervalObj(lowBoundDate, timeIntervalObj),lowBoundStr.length);
         loop++;
     }
 
@@ -471,36 +521,42 @@ function getextendCLRangeArray(lastSubCLName, firstLowBoundStr, timeIntervalObj)
 
 function getNormalCLExtendName() {
     // 同一应用下同一类型表
-    let CLArray = [];
     let endTimeDate = parseDateTime(ENDTIME);
+    let cursor;
 
     // 使用 TMPCLNAME 对进行排序查找最后一个表，先把同一模型、同一应用的表放进去
     try {
-        db.execUpdate('insert into ' + DATACS + "." + TMPCLNAME + ' select CLName as value,appName,modelType from ' + DATACS + "." + MATCHCATANAME + ' where IsMainCL is null and MainCLName is null');
+        db.execUpdate('insert into ' + DATACS + "." + TMPCLNAME + ' select Name as value,appName,modelType from ' + DATACS + "." + MATCHCATANAME + ' where IsMainCL is null and MainCLName is null');
     } catch (error) {
         logger.except("查询表 [" + DATACS + "." + MATCHCATANAME + "] 数据插入到 [" + DATACS + "." + TMPCLNAME + "] 失败", error);
         throw error;
     }
 
     // 聚集后的 $first 不受 order by 影响，但是 $max 和 $min 可以取到，同时找出倒数第一和第二张表，可能会找不出
-    //db.exec('select a.lastCLName,max(b.value) as secondCLName,b.appName,b.modelType from (select max(value) as lastCLName,appName,modelType from MODEL.SORT group by appName,modelType) as a inner join MODEL.SORT as b on a.appName = b.appName and a.modelType = b.modelType where a.lastCLName <> b.value group by b.appName,b.modelType')
     try {
-        db.execUpdate('insert into ' + DATACS + "." + LASTCLNAME + ' select a.lastCLName,max(b.value) as secondCLName,b.appName,b.modelType from (select max(value) as lastCLName,appName,modelType from ' + DATACS + "." + TMPCLNAME + ' group by appName,modelType) as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.appName = b.appName and a.modelType = b.modelType where a.lastCLName <> b.value group by b.appName,b.modelType')
+        db.execUpdate('insert into ' + DATACS + "." + LASTCLNAME + ' select a.lastCLName,max(b.value) as secondCLName,b.appName,b.modelType from (select max(value) as lastCLName,appName,modelType from ' + DATACS + "." + TMPCLNAME + ' group by appName,modelType) as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.appName = b.appName and a.modelType = b.modelType where a.lastCLName <> b.value group by b.appName,b.modelType /*+use_hash()*/')
     } catch (error) {
         logger.except("查询表 [" + DATACS + "." + TMPCLNAME + "] 数据插入到 [" + DATACS + "." + LASTCLNAME + "] 失败", error);
         throw error;
     }
 
-    // if (CLArray.length == 1) {
-    //     timeIntervalObj = DEFAULTTIMEINTERVALOBJ;
-    //     let content = "没有找到普通表 [" + normalCL + "] 其他时间命名的表，无法确定时间间隔，使用默认时间间隔: " + JSON.stringify(DEFAULTTIMEINTERVALOBJ);
-    //     logger.warn(content);
-    // }
+    try {
+        cursor = db.exec('select * from ' + DATACS + "." + LASTCLNAME + ' where mainCLName is null');
+    } catch (error) {
+        logger.except("获取表 [" + DATACS + "." + LASTCLNAME + "] 中数据失败", error);
+        throw error;
+    }
 
     try {
-        let cursor = db.exec('select * from ' + DATACS + "." + LASTCLNAME + ' where appName is not null');
         while (cursor.next()) {
-            let current = cursor.current().toObj();
+            let timeIntervalObj;
+            let current;
+            try {
+                current = cursor.current().toObj();
+            } catch (error) {
+                logger.except("获取表 [" + DATACS + "." + LASTCLNAME + "] 中数据失败", error);
+                throw error;
+            };
             // 解析名字中的时间
             let secondCLName = current.secondCLName.split('.')[1];
             let lastCLName = current.lastCLName;
@@ -510,6 +566,9 @@ function getNormalCLExtendName() {
                 let dateFormat = DATE_FORMAT_ARRAY[i];
                 // 匹配格式，只考虑 CL，不考虑 CS
                 let lastDate = new Date();
+                if (STARTYEAR != 0) {
+                    lastDate.setFullYear(STARTYEAR);
+                }
                 let newDate = new Date(lastDate);
                 if (isFind) {
                     break;
@@ -519,7 +578,7 @@ function getNormalCLExtendName() {
                     let dateStr = dateFormat.replace(new RegExp("\\$YYYY", "i"), newDate.getFullYear());
                     let month = "";
                     let day = "";
-
+    
                     // 补齐月份和日期的0
                     if (newDate.getMonth() < 9) {
                         month += ('0' + (newDate.getMonth() + 1));
@@ -534,21 +593,21 @@ function getNormalCLExtendName() {
                     }
                     dateStr = dateStr.replace("$MM", month);
                     dateStr = dateStr.replace(new RegExp("\\$dd", "i"), day);
-
                     let index = lastCLNameCL.search(dateStr);
-                    //logger.info(lastCLNameCL + " " + dateStr + " " + dateFormat);
+                    //logger.debug(lastCLNameCL + " " + dateStr + " " + dateFormat);
                     if (-1 != index) {
                         // 最新分区时间
                         let dateStr1 = dateStr;
                         // 前一个分区时间，要求除时间外，格式需要一致
                         let dateStr2 = secondCLName.substring(index, index + dateStr1.length);
+                        //logger.debug(lastCLNameCL + " " + dateStr + " " + dateFormat);
                         //logger.debug(dateStr2 + "|" + dateStr1);
                         timeIntervalObj = getTimeIntervalObj(dateStr2, dateStr1);
                         //logger.debug(JSON.stringify(timeIntervalObj));
                         isFind = true;
                         break;
                     }
-
+    
                     // 已提前建好了后续的时间分区的子表，这里跳过，直到最后一个时间分区
                     // 没有考虑到往前的情况，即当前时间没有子表
                     if (-1 != dateFormat.search(new RegExp("\\$dd", "i"))) {
@@ -564,15 +623,14 @@ function getNormalCLExtendName() {
                     }
                 }
             }
-            if (timeIntervalObj == undefined || timeIntervalObj == "") {
-                let content = "无法获取普通表 [" +  CLArray + "] 的时间间隔: " + JSON.stringify(timeIntervalObj);
+            if (timeIntervalObj == undefined || (timeIntervalObj.diffYear == 0 && timeIntervalObj.diffMonth == 0 && timeIntervalObj.diffDay == 0)) {
+                let content = "无法获取普通表 [" + lastCLName + "] 的时间间隔: " + JSON.stringify(timeIntervalObj) + "，请确认是否需要调整参数 STARTYEAR 的值 " + STARTYEAR + " 以向更早的时间段查找";
                 logger.error(content);
                 throw new Error(content);
             }
-            //logger.debug(normalCL + " " + JSON.stringify(timeIntervalObj));
+            //logger.debug(lastCLName + " " + JSON.stringify(timeIntervalObj));
             // 从名字判断日期，因为 2020 后缀代表 2020-2021 的数据，ENDTIME 是根据分区时间确定的，所以这里会多出一个分区
             let extendArray = getExtendCLNameArray("", lastCLName, "",timeIntervalObj);
-
             if (extendArray.length == 0 && endTimeDate.getTime()) {
                 let content = "无法生成普通表 [" + lastCLName + "] 的时间扩展表名，请检查 bin/args.js 中 ENDTIME 是否合理，或者是表名中没有可扩展的时间字符串";
                 logger.warn(content);
@@ -583,6 +641,7 @@ function getNormalCLExtendName() {
                     for (let i = 0; i < extendArray.length; i++) {
                         insertArray.push({"prevCLName":lastCLName,"createCLName":extendArray[i],"upBound":"","lowBound":""});
                     }
+                    //logger.debug(JSON.stringify(insertArray));
                     extendcl.insert(insertArray);
                 } catch (error) {
                     logger.except("向表 [" +  EXTENDCLNAME + "] 中插入数据失败", error);
@@ -590,11 +649,12 @@ function getNormalCLExtendName() {
                 }
             }
         }
-        cursor.close();
     } catch (error) {
-        logger.except("查询表 [" + DATACS + "." + LASTCLNAME + "] 数据，获取时间间隔失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
+
 
     try {
         db.getCS(DATACS).getCL(TMPCLNAME).truncate();
@@ -623,13 +683,24 @@ function getFullSubCLInfo() {
     }
 
     let subCLsize = 0;
+    let cursor;
     try {
-        let cursor = db.exec('select Name,CataInfo,ShardingKey,ShardingType,appName from ' + DATACS + '.' + MATCHCATANAME + ' where IsMainCL = true');
+        cursor = db.exec('select Name,CataInfo,ShardingKey,ShardingType,appName,modelType from ' + DATACS + '.' + MATCHCATANAME + ' where IsMainCL = true');
+    } catch (error) {
+        logger.except("获取表 [" + DATACS + "." + MATCHCATANAME + "] 中数据失败", error);
+        throw error;
+    }
+    try {
         while (cursor.next()) {
-            let current = cursor.current().toObj();
+            let current;
+            try {
+                current = cursor.current().toObj();
+            } catch (error) {
+                logger.except("获取表 [" + DATACS + "." + MATCHCATANAME + "] 中数据失败", error);
+                throw error;
+            }
             let mainCL = current.Name;
             let CataInfo = current.CataInfo;
-            let appName = current.appName;
             //logger.debug(mainCL);
             // 记录表切分键字符串
             let ShardingKey = Object.keys(current.ShardingKey)[0];
@@ -642,8 +713,7 @@ function getFullSubCLInfo() {
                 let lowBound = CataInfo[j].LowBound[ShardingKey];
                 try {
                     // 补充子表 CATA 信息
-                    //logger.debug('insert into ' + DATACS + '.' + MATCHCATANAME + ' select a.Name,a.MainCLName,a.CataInfo,a.ShardingKey,a.ShardingType,b.appName from (select Name,CataInfo,ShardingKey,ShardingType,MainCLName from ' + DATACS + '.' + SNAPSHOTCATANAME + ' where Name = "' + subCLName + '") as a inner join ' + DATACS + '.' + MATCHCATANAME + ' as b on a.MainCLName = b.Name')
-                    db.execUpdate('insert into ' + DATACS + '.' + MATCHCATANAME + ' select a.Name,a.MainCLName,a.CataInfo,a.ShardingKey,a.ShardingType,b.appName from (select Name,CataInfo,ShardingKey,ShardingType,MainCLName from ' + DATACS + '.' + SNAPSHOTCATANAME + ' where Name = "' + subCLName + '") as a inner join ' + DATACS + '.' + MATCHCATANAME + ' as b on a.MainCLName = b.Name')
+                    db.execUpdate('insert into ' + DATACS + '.' + MATCHCATANAME + ' select a.Name,a.MainCLName,a.CataInfo,a.Partition,a.ShardingKey,a.ShardingType,b.appName,b.modelType from (select Name,CataInfo,ShardingKey,ShardingType,MainCLName,Partition from ' + DATACS + '.' + SNAPSHOTCATANAME + ' where Name = "' + subCLName + '") as a inner join ' + DATACS + '.' + MATCHCATANAME + ' as b on a.MainCLName = b.Name /*+use_hash()*/')
                 } catch (error) {
                     logger.except("往表 [" + DATACS + "." + MATCHCATANAME + "] 中补充子表 CATA 数据失败", error);
                     throw error;
@@ -655,7 +725,7 @@ function getFullSubCLInfo() {
                     if (keyStr == "$maxKey") {
                         // 插入表记录 maxclname
                         try {
-                            mainmaxcl.insert({MainCLName:mainCL,MaxCLName:subCLName});
+                            mainmaxcl.insert({MainCLName:mainCL,maxCLName:subCLName});
                         } catch (error) {
                             logger.except("往表 [" + DATACS + "." + MAINMAXNAME + "] 中插入 MAINCL 与 MAXCL 关系数据失败", error);
                             throw error;
@@ -671,7 +741,7 @@ function getFullSubCLInfo() {
                     try {
                         // value 有索引，取 MAX 值快
                         //logger.debug(JSON.stringify(current.ShardingKey));
-                        sortcl.insert({"CLName":subCLName,"shardingKey":ShardingKey,"shardingKeyObj":JSON.stringify(current.ShardingKey),"value":upBound,"lowBound":lowBound,"mainCLName":mainCL});
+                        sortcl.insert({"CLName":subCLName,"shardingKey":ShardingKey,"shardingKeyObj":JSON.stringify(current.ShardingKey),"value":upBound,"lowBound":lowBound,"mainCLName":mainCL,"appName":current.appName,"modelType":current.modelType});
                     } catch (error) {
                         logger.except("往临时表 [" + DATACS + "." + TMPCLNAME + "] 中插入数据失败", error);
                         throw error;
@@ -679,12 +749,12 @@ function getFullSubCLInfo() {
                 }
             }
 
-            // 找到最后一个分区的，并插入到 lastcl 表中
+            // 通过临时表找到当前主表的最后一个分区的，并插入到 lastcl 表中
             try {
                 db.execUpdate('insert into ' + DATACS + "." + LASTCLNAME + ' \
-                select t1.CLName as lastCLName,t1.upBound,t1.lowBound,t2.CLName as secondCLName,t2.mainCLName,t2.shardingKey from \
-                (select b.CLName,a.upBound,b.lowBound from (select max(value) as upBound from ' + DATACS + "." + TMPCLNAME + ' ) \as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.upBound = b.value) \
-                as t1 inner join ' + DATACS + "." + TMPCLNAME + ' as t2 on t1.lowBound = t2.value')
+                select t1.CLName as lastCLName,t1.upBound,t1.lowBound,t2.CLName as secondCLName,t2.mainCLName,t2.shardingKey,t2.appName,t2.modelType from \
+                (select b.CLName,a.upBound,b.lowBound from (select max(value) as upBound from ' + DATACS + "." + TMPCLNAME + ' ) \as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.upBound = b.value /*+use_hash()*/) \
+                as t1 inner join ' + DATACS + "." + TMPCLNAME + ' as t2 on t1.lowBound = t2.value /*+use_hash()*/')
             } catch (error) {
                 logger.except("查询表 [" + DATACS + "." + TMPCLNAME + "] 数据插入到 [" + DATACS + "." + LASTCLNAME + "] 失败", error);
                 throw error;
@@ -698,82 +768,99 @@ function getFullSubCLInfo() {
                 throw error;
             }
         }
-        cursor.close();
-
-        try {
-            // 主子表字段为 lastCLName,upBound,lowBound 普通表字段为 lastCLName,appName,modelType
-            // 查找最后一个分区表
-            cursor = db.exec('select lastCLName,shardingKey,shardingKeyObj,lowBound,upBound,mainCLName,secondCLNamE from ' + DATACS + "." + LASTCLNAME + ' where mainCLName is not null');
-            let timeIntervalObj;
-            let extendCLNameArray = [];
-            let extendCLRangeArray = [];
-            while (cursor.next()) {
-                let current = cursor.current().toObj();
-                let upBound = current.upBound;
-                let lowBound = current.lowBound;
-                let lastCLName = current.lastCLName;
-                let mainCLName = current.mainCLName;
-                let shardingKeyObj = current.shardingKeyObj;
-                //logger.debug(shardingKeyObj);
-                let secondCLName = current.secondCLName;
-                let shardingKey = current.shardingKey;
-                // 获取时间间隔
-                timeIntervalObj = getTimeIntervalObj(upBound, lowBound);
-                if (timeIntervalObj == undefined || timeIntervalObj == "") {
-                    let content = "通过 UpBound: " + upBound + " 和 LowBound: " + lowBound + " 获取的时间间隔有误: " + JSON.stringify(timeIntervalObj);
-                    logger.error(content);
-                    throw new Error(content);
-                }
-                // 获取时间间隔数组
-                extendCLRangeArray = getextendCLRangeArray(lastCLName, upBound, timeIntervalObj);
-                // 获取扩展分区的名称数组
-                extendCLNameArray = getExtendCLNameArray(mainCLName, lastCLName, upBound, timeIntervalObj);
-
-                if (extendCLNameArray.length != extendCLRangeArray.length) {
-                    let content = "解析扩展子表名与扩展上下界不一致";
-                    logger.error(content);
-                    for (let j = 0; j < extendCLNameArray.length; j++) {
-                        logger.error("子表名：" + extendCLNameArray[j]);
-                    }
-                    for (let j = 0; j < extendCLRangeArray.length; j++) {
-                        logger.error("扩展上下界：" + JSON.stringify(extendCLRangeArray[j]));
-                    }
-                    throw new Error(content);
-                }
-
-                try {
-                    let insertArray = [];
-                    let extendcl = db.getCS(DATACS).getCL(EXTENDCLNAME);
-                    let insertShardingKeyObj = {};
-                    if (lowBound.length == 8) {
-                        insertShardingKeyObj[shardingKey] = "$YYYY$MM$dd";
-                    } else if (lowBound.length == 14)  {
-                        let tmpObj = {};
-                        insertShardingKeyObj[shardingKey] = "$YYYY$MM$dd$HH$mm$ss";
-                    } else {
-                        insertShardingKeyObj[shardingKey] = shardingKeyObj;
-                    }
-                    for (let i = 0; i < extendCLNameArray.length; i++) {
-                        //logger.debug(JSON.stringify(extendCLRangeArray[i]) + "|" + extendCLNameArray[i]);
-                        // 插入扩展表
-                        insertArray.push({"shardingKeyObj":insertShardingKeyObj,"prevCLName":secondCLName,"createCLName":extendCLNameArray[i],"upBound":extendCLRangeArray[i].UpBound,"lowBound":extendCLRangeArray[i].LowBound});
-                    }
-                    //logger.debug(JSON.stringify(insertArray));
-                    extendcl.insert(insertArray);
-                } catch (error) {
-                    logger.except("向表 [" +  EXTENDCLNAME + "] 中插入数据失败", error);
-                    throw error;
-                }
-            }
-        } catch (error) {
-            logger.except("查询表 [" + DATACS + "." + LASTCLNAME + "] 数据，获取时间间隔失败", error);
-            throw error;
-        }
     } catch (error) {
-        logger.except("获取子表信息失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
 
+    try {
+        // 查找最后一个分区表
+        cursor = db.exec('select lastCLName,shardingKey,shardingKeyObj,lowBound,upBound,mainCLName from ' + DATACS + "." + LASTCLNAME + ' where mainCLName is not null');
+    } catch (error) {
+        logger.except("获取表 [" + DATACS + "." + LASTCLNAME + "] 中数据失败", error);
+        throw error;
+    }
+    try {
+        let timeIntervalObj;
+        let extendCLNameArray = [];
+        let extendCLRangeArray = [];
+        while (cursor.next()) {
+            let current;
+            try {
+                current = cursor.current().toObj();
+            } catch (error) {
+                logger.except("获取表 [" + DATACS + "." + LASTCLNAME + "] 中数据失败", error);
+            }
+            let upBound = current.upBound;
+            let lowBound = current.lowBound;
+            let lastCLName = current.lastCLName;
+            let mainCLName = current.mainCLName;
+            let shardingKeyObj = current.shardingKeyObj;
+            //logger.debug(shardingKeyObj);
+            let shardingKey = current.shardingKey;
+            // 获取时间间隔
+            timeIntervalObj = getTimeIntervalObj(upBound, lowBound);
+            if (timeIntervalObj == undefined || timeIntervalObj == "") {
+                let content = "通过 UpBound: " + upBound + " 和 LowBound: " + lowBound + " 获取的时间间隔有误: " + JSON.stringify(timeIntervalObj);
+                logger.error(content);
+                throw new Error(content);
+            }
+            // 获取时间间隔数组
+            //logger.debug(mainCLName + " " + lastCLName + " " + lowBound + " " + upBound + " " + JSON.stringify(timeIntervalObj));
+            extendCLRangeArray = getExtendCLRangeArray(lastCLName, upBound, timeIntervalObj);
+            // 获取扩展分区的名称数组
+            extendCLNameArray = getExtendCLNameArray(mainCLName, lastCLName, upBound, timeIntervalObj);
+            //logger.debug(JSON.stringify(extendCLRangeArray));
+            //logger.debug(JSON.stringify(extendCLNameArray));
+            if (extendCLNameArray.length != extendCLRangeArray.length) {
+                let content = "解析出主表 [" + mainCLName + "] 的扩展子表名与扩展上下界不一致，请确认是否需要调整参数 STARTYEAR 的值 " + STARTYEAR + " 以向更早的时间段查找";
+                logger.error(content);
+                logger.error("子表数量为: " + extendCLNameArray.length);
+                for (let j = 0; j < extendCLNameArray.length; j++) {
+                    logger.error("子表名：" + extendCLNameArray[j]);
+                }
+                logger.error("扩展上下界数量为: " + extendCLRangeArray.length);
+                for (let j = 0; j < extendCLRangeArray.length; j++) {
+                    logger.error("扩展上下界：" + JSON.stringify(extendCLRangeArray[j]));
+                }
+                throw new Error(content);
+            }
+
+            try {
+                let insertArray = [];
+                let extendcl = db.getCS(DATACS).getCL(EXTENDCLNAME);
+                let insertShardingKeyObj = {};
+                // 有些情况可能无法处理
+                if (lowBound.length == 4) {
+                    insertShardingKeyObj[shardingKey] = "$YYYY";
+                } else if (lowBound.length == 6) {
+                    insertShardingKeyObj[shardingKey] = "$YYYY$MM";
+                } else if (lowBound.length == 8) {
+                    insertShardingKeyObj[shardingKey] = "$YYYY$MM$dd";
+                } else if (lowBound.length == 14)  {
+                    let tmpObj = {};
+                    insertShardingKeyObj[shardingKey] = "$YYYY$MM$dd$HH$mm$ss";
+                } else {
+                    insertShardingKeyObj[shardingKey] = shardingKeyObj;
+                }
+                for (let i = 0; i < extendCLNameArray.length; i++) {
+                    //logger.debug(JSON.stringify(extendCLRangeArray[i]) + "|" + extendCLNameArray[i]);
+                    // 插入扩展表
+                    insertArray.push({"mainCLName":mainCLName,"shardingKeyObj":insertShardingKeyObj,"prevCLName":lastCLName,"createCLName":extendCLNameArray[i],"upBound":extendCLRangeArray[i].UpBound,"lowBound":extendCLRangeArray[i].LowBound});
+                }
+                //logger.debug(JSON.stringify(insertArray));
+                extendcl.insert(insertArray);
+            } catch (error) {
+                logger.except("向表 [" +  EXTENDCLNAME + "] 中插入数据失败", error);
+                throw error;
+            }
+        }
+    } catch (error) {
+        throw error;
+    } finally {
+        cursor.close();
+    }
     return subCLsize;
 }
 
@@ -781,48 +868,48 @@ function getCLInfo() {
     try {
         // 找出匹配的 SNAPSHOT_CL
         try {
-            //logger.debug('insert into ' + DATACS + '.' + MATCHCLNAME + ' select b.* from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + SNAPSHOTCLNAME + ' as b on a.Name = b.Name');
-            db.execUpdate('insert into ' + DATACS + '.' + MATCHCLNAME + ' select b.Name,b.CollectionSpace,b.Details from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + SNAPSHOTCLNAME + ' as b on a.Name = b.Name');
+            if (ISPRIMARY) {
+                // 带有 nodeselect = "primary"
+                //logger.debug('insert into ' + DATACS + '.' + MATCHCLNAME + ' select b.Name,b.CollectionSpace,b.Details from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + SNAPSHOTCLNAME + ' as b on a.Name = b.Name /*+use_hash()*/');
+                db.execUpdate('insert into ' + DATACS + '.' + MATCHCLNAME + ' select b.Name,b.CollectionSpace,b.Details from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + SNAPSHOTCLNAME + ' as b on a.Name = b.Name /*+use_hash()*/');
+            } else {
+                // 不带有 nodeselect = "primary" 
+                db.execUpdate('insert into ' + DATACS + '.' + MATCHCLNAME + ' select b.Name,b.CollectionSpace,b.Details from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + SNAPSHOTCLNAME + ' as b on a.Name = b.Name /*+use_hash()*/');
+            }
         } catch (error) {
             logger.except("根据表 [" + DATACS + "." + MATCHCATANAME + "] 中匹配命中的表去 [" + DATACS + "." + SNAPSHOTCLNAME + "] 中查找 SNAPSHOT_CL 信息失败", error);
             throw error;
         }
 
-        // 找出匹配 CS 对应的 domain，这个只能一个个找
+        let cursor;
         try {
-            //logger.debug('select a.Name from ' + DATACS + '.' + SNAPSHOTCSNAME + ' as a inner join ' + DATACS + '.' + MATCHCLNAME + ' as b on a.Name = b.CollectionSpace');
-            let cursor = db.exec('select a.Name from ' + DATACS + '.' + SNAPSHOTCSNAME + ' as a inner join ' + DATACS + '.' + MATCHCLNAME + ' as b on a.Name = b.CollectionSpace group by a.Name');
-            while (cursor.next()) {
-                let csName = cursor.current().toObj().Name;
-                let domain;
-                try {
-                    domain = db.getCS(csName).getDomainName();
-                } catch (error) {
-                    logger.except("获取 CS [" + csName + "] 的 doaminName 失败", error);
-                    throw error;
-                }
-
-                try {
-                    db.getCS(DATACS).getCL(CSDOAMINNAME).insert({"CSName":csName,"DomainName":domain});
-                } catch (error) {
-                    logger.except("往表 [" + CSDOAMINNAME + "] 中插入 CS 与 DOMAIN 关系失败", error);
-                    throw error;
-                }
+            if (ISPRIMARY) {
+                // 带有 nodeselect = "primary"
+                cursor = db.exec('select t.Details.TotalRecords as TotalRecords,t.Details.TotalLobs as TotalLobs,t.Details.TotalDataPages as TotalDataPages,t.Details.TotalIndexPages as TotalIndexPages ,t.Details.TotalDataFreeSpace as TotalDataFreeSpace,t.Details.TotalIndexFreeSpace as TotalIndexFreeSpace,t.Details.PageSize as PageSize, \
+                t.Details.GroupName as GroupName,t.Details.TotalLobPages as TotalLobPages,t.Details.LobPageSize as LobPageSize,t.Name from (select Details,Name from ' + DATACS + '.' + MATCHCLNAME + ' split by Details) as t');
+            } else {
+                // 不带有 nodeselect = "primary" 
+                cursor = db.exec('select t.Details.TotalRecords as TotalRecords,t.Details.TotalLobs as TotalLobs,t.Details.TotalDataPages as TotalDataPages,t.Details.TotalIndexPages as TotalIndexPages ,t.Details.TotalDataFreeSpace as TotalDataFreeSpace,t.Details.TotalIndexFreeSpace as TotalIndexFreeSpace,t.Details.PageSize as PageSize, \
+                t.Details.GroupName as GroupName,t.Details.TotalLobPages as TotalLobPages,t.Details.LobPageSize as LobPageSize,t.Name from (select Details,Name from ' + DATACS + '.' + MATCHCLNAME + ' split by Details) as t group by t.Name,t.Details.GroupName');
             }
         } catch (error) {
-            logger.except("根据表 [" + DATACS + "." + MATCHCATANAME + "] 中匹配命中的表去 [" + DATACS + "." + SNAPSHOTCSNAME + "] 中查找 CS 信息失败", error);
+            logger.except("获取表 [" + DATACS + "." + MATCHCLNAME + "] 中数据失败", error);
             throw error;
         }
 
         try {
-            let cursor = db.exec('select t.Details.TotalRecords,t.Details.TotalLobs,t.Details.TotalDataPages, t.Details.TotalIndexPages, t.Details.TotalDataFreeSpace, t.Details.TotalIndexFreeSpace, t.Details.PageSize, \
-            t.Details.GroupName,t.Name from (select Details,Name from ' + DATACS + '.' + MATCHCLNAME + ' split by Details) as t');
             let cl = db.getCS(DATACS).getCL(GROUPSIZENAME);
+            let loop = 0;
             while (cursor.next()) {
+                loop++;
+                if ((loop % INFOOUTPUTONCE) == 0) {
+                    logger.info("已计算 " + loop + " 个组的数据量");
+                }
                 let current = cursor.current().toObj();
                 let insertObj = {};
                 let currentGroupSizeGB = ((current.TotalDataPages + current.TotalIndexPages) * current.PageSize - current.TotalDataFreeSpace - current.TotalIndexFreeSpace) / 1024 / 1024 / 1024;
                 insertObj['currentGroupSizeGB'] = currentGroupSizeGB;
+                insertObj['currentLobSizeGB'] = (current.TotalLobPages * current.LobPageSize) / 1024 / 1024 / 1024;
                 insertObj['GroupName'] = current.GroupName;
                 insertObj['Name'] = current.Name;
                 insertObj['groupTotalRecords'] = current.TotalRecords;
@@ -830,61 +917,64 @@ function getCLInfo() {
                 //logger.debug(JSON.stringify(insertObj));
                 cl.insert(insertObj);
             }
-            cursor.close();
         } catch (error) {
             logger.except("向表 [" + DATACS + "." + GROUPSIZENAME  + "] 插入数据失败", error);
             throw error;
+        } finally {
+            cursor.close();
         }
 
+        logger.info("计算完成，开始合并信息");
         try {
-            db.execUpdate('insert into ' + DATACS + "." + CLSIZENAME + ' select sum(groupTotalRecords) as totalRecords,sum(groupTotalLobs) as totalLobs,sum(currentGroupSizeGB) as totalSizeGB, max(currentGroupSizeGB) as groupMaxSizeGB, \
-            min(currentGroupSizeGB) as groupMinSizeGB, count(GroupName) as groupNum, Name, push(GroupName) as groupArray \
+            db.execUpdate('insert into ' + DATACS + "." + CLSIZENAME + ' select sum(groupTotalRecords) as totalRecords,sum(groupTotalLobs) as totalLobs,sum(currentGroupSizeGB) as totalSizeGB, \
+            sum(currentLobSizeGB) as totalLobSizeGB, max(currentGroupSizeGB) as groupMaxSizeGB, \
+            min(currentGroupSizeGB) as groupMinSizeGB, count(GroupName) as groupNum, Name, push(GroupName) as groupArray, \
+            max(currentLobSizeGB) as groupLobMaxSizeGB, min(currentLobSizeGB) as groupLobMinSizeGB\
             from ' + DATACS + "." + GROUPSIZENAME + ' group by Name');
         } catch (error) {
-            logger.except("对表 [" + DATACS + "." + GROUPSIZENAME  + "] 进行数据聚集运算时失败", error);
+            logger.except("对表 [" + DATACS + "." + GROUPSIZENAME  + "] 进行数据聚集运算，并插入到表 [" + DATACS + "." + CLSIZENAME  + "] 失败", error);
             throw error;
         }
     } catch (error) {
-        logger.except("无法获取 CL 详细信息", error);
+        logger.except("获取 CL 详细信息失败", error);
         throw error;
     }
 
     // 建之前几个表的信息做一个合并到新表中，以便最后输出时不用 inner join, join 字段都是完整的表名 Name
     // 从 MATCH_CATA 中取出 Name,MainCLName,appName
-    // 从 SNAPSHOT_CS 中取出 PageSize,LobPageSize
+    // 从 LIST_CS 中取出 PageSize,LobPageSize,domain
     // 从 CL_SIZE 中取出 totalSizeGB,groupMaxSizeGB,groupMinSizeGB,groupNum,groupArray
-    // 从 CS_DOMAIN 中取出 domain
 
-    // 先通过 MATCH_CL 和 SNAPSHOT_CS，CS_DOMAIN 记录 CL 与 CS 中 PageSize,LobPageSize,domain 的关系，插入到 HRBRID_CS_CL 中
+    // 先通过 MATCH_CL 和 LIST_CS 记录 CL 与 CS 中 PageSize,LobPageSize,domain 的关系，插入到 HRBRID_CS_CL 中
     try {
-        // logger.debug('insert into ' + DATACS + '.' + HYBRIDCSCLNAME + ' \
-        //     select t1.Name,t1.CollectionSpace as CSName,t1.PageSize as pageSize,t1.LobPageSize as lobPageSize,t2.DomainName as domain from (select b.Name,b.CollectionSpace,a.PageSize,a.LobPageSize \
-        //     from ' + DATACS + '.' + SNAPSHOTCSNAME + ' \
-        //     as a inner join ' + DATACS + '.' + MATCHCLNAME + ' as b \
-        //     on a.Name = b.CollectionSpace split by b.Details) as t1 \
-        //     inner join ' + DATACS + '.' + CSDOAMINNAME + ' as t2 on t1.CollectionSpace = t2.CSName group by t1.Name');
         db.execUpdate('insert into ' + DATACS + '.' + HYBRIDCSCLNAME + ' \
-            select t1.Name,t1.CollectionSpace as CSName,t1.PageSize as pageSize,t1.LobPageSize as lobPageSize,t2.DomainName as domain from (select b.Name,b.CollectionSpace,a.PageSize,a.LobPageSize \
-            from ' + DATACS + '.' + SNAPSHOTCSNAME + ' \
-            as a inner join ' + DATACS + '.' + MATCHCLNAME + ' as b \
-            on a.Name = b.CollectionSpace split by b.Details) as t1 \
-            inner join ' + DATACS + '.' + CSDOAMINNAME + ' as t2 on t1.CollectionSpace = t2.CSName group by t1.Name');
+        select b.Name,b.CollectionSpace as CSName,a.PageSize as pageSize,a.LobPageSize as lobPageSize,a.Domain as domain \
+        from (select PageSize,LobPageSize,Name,Domain from ' + DATACS + '.' + LISTCSNAME + ') \
+        as a inner join (select Name,CollectionSpace from ' + DATACS + '.' + MATCHCLNAME + ' group by Name) as b \
+        on a.Name = b.CollectionSpace order by b.Name /*+use_hash()*/');
     } catch (error) {
-        logger.except("无法合并表 [" + DATACS + "." + SNAPSHOTCSNAME + " " + DATACS + "." + MATCHCLNAME + " " + DATACS + "." + CSDOAMINNAME + "] 数据到 [" + DATACS + "." + HYBRIDCSCLNAME + "] 中", error);
+        logger.except("无法合并表 [" + DATACS + "." + LISTCSNAME + " " + DATACS + "." + MATCHCLNAME + "] 数据到 [" + DATACS + "." + HYBRIDCSCLNAME + "] 中", error);
         throw error;
     }
 
-    // 然后从 MATCH_CATA 中取出 Name,MainCLName,appName,从 CL_SIZE 中取出 totalSizeGB,groupMaxSizeGB,groupMinSizeGB,groupNum,groupArray，先合并到临时表
+    // 然后从 MATCH_CATA 中取出 Name,MainCLName,appName,从 CL_SIZE 中取出 totalSizeGB,groupMaxSizeGB,groupMinSizeGB,groupNum,groupArray，从 MAIN_MAX 中取出 maxCLName，先合并到临时表
     try {
-        db.execUpdate('insert into ' + DATACS + "." + TMPCLNAME + ' select a.Name,a.MainCLName,a.appName,b.totalRecords,b.totalLobs,b.totalSizeGB,b.groupMaxSizeGB,b.groupMinSizeGB,b.groupNum,b.groupArray from ' + DATACS + '.' + MATCHCATANAME + ' as a inner join ' + DATACS + '.' + CLSIZENAME + ' as b on a.Name = b.Name')
+        db.execUpdate('insert into ' + DATACS + "." + TMPCLNAME + ' \
+        select t1.Name,t1.MainCLName,t1.appName,t1.modelType,t1.Partition,t1.totalRecords,t1.totalLobs,t1.totalSizeGB,t1.totalLobSizeGB,t1.groupMaxSizeGB,t1.groupMinSizeGB,t1.groupLobMaxSizeGB,t1.groupLobMinSizeGB,t1.groupNum,t1.groupArray,t2.maxCLName from \
+        (select a.Name,a.MainCLName,a.appName,a.modelType,a.Partition,b.totalRecords,b.totalLobs,b.totalSizeGB,b.totalLobSizeGB,b.groupMaxSizeGB,b.groupMinSizeGB,b.groupLobMaxSizeGB,b.groupLobMinSizeGB,b.groupNum,b.groupArray from ' + DATACS + '.' + MATCHCATANAME + ' as a \
+        inner join ' + DATACS + '.' + CLSIZENAME + ' as b on a.Name = b.Name /*+use_hash()*/) as t1 left outer join ' + DATACS + '.' + MAINMAXNAME + ' as t2 on t1.MainCLName = t2.MainCLName /*+use_hash()*/');
     } catch (error) {
-        logger.except("无法合并表 [" + DATACS + "." + MATCHCATANAME + " " + DATACS + "." + CLSIZENAME + "] 数据到 [" + DATACS + "." + TMPCLNAME + "] 中", error);
+        logger.except("无法合并表 [" + DATACS + "." + MATCHCATANAME + " " + DATACS + "." + CLSIZENAME + " " + DATACS + "." + MAINMAXNAME + "] 数据到 [" + DATACS + "." + TMPCLNAME + "] 中", error);
         throw error;
     }
 
     // 然后把最终记录合并到 OUTPUT 表
     try {
-        db.execUpdate('insert into ' + DATACS + '.' + OUTOUTCLNAME + ' select a.Name,a.CSName,a.pageSize,a.lobPageSize,a.domain,b.MainCLName,b.appName,b.totalRecords,b.totalLobs,b.totalSizeGB,b.groupMaxSizeGB,b.groupMinSizeGB,b.groupNum,b.groupArray from ' + DATACS + '.' + HYBRIDCSCLNAME + ' as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.Name = b.Name')
+        db.execUpdate('insert into ' + DATACS + '.' + OUTOUTCLNAME + ' \
+        select t1.Name,t1.CSName,t1.pageSize,t1.lobPageSize,t1.domain,t1.MainCLName,t1.maxCLName,t1.appName,t1.modelType,t1.Partition,t1.totalRecords,t1.totalLobs,t1.totalSizeGB,t1.totalLobSizeGB,t1.groupMaxSizeGB,t1.groupMinSizeGB,t1.groupLobMaxSizeGB,t1.groupLobMinSizeGB,t1.groupNum,t1.groupArray,\
+        t2.lastCLName,t2.secondCLName from (select a.Name,a.CSName,a.pageSize,a.lobPageSize,a.domain,b.MainCLName,b.maxCLName,b.appName,b.modelType,b.Partition,b.totalRecords,b.totalLobs,b.totalSizeGB,b.totalLobSizeGB,b.groupMaxSizeGB,b.groupMinSizeGB,b.groupLobMaxSizeGB,b.groupLobMinSizeGB,b.groupNum,b.groupArray \
+        from ' + DATACS + '.' + HYBRIDCSCLNAME + ' as a inner join ' + DATACS + "." + TMPCLNAME + ' as b on a.Name = b.Name /*+use_hash()*/) as t1 \
+        inner join ' + DATACS + "." + LASTCLNAME + ' as t2 on t1.modelType = t2.modelType and t1.appName = t2.appName /*+use_hash()*/')
     } catch (error) {
         logger.except("无法合并表 [" + DATACS + "." + HYBRIDCSCLNAME + " " + DATACS + "." + TMPCLNAME + "] 数据到 [" + DATACS + "." + OUTOUTCLNAME + "] 中", error);
         throw error;
@@ -906,24 +996,30 @@ function outputCSV() {
 
     try {
         // 输出表维度 csv: 表名，主表名，应用名，数据域，总记录数，LOB数，总数据量，每个组平均数据量，组上最大数据量，组上最小数据量，最大/最小偏差值，组数，所在数据组
+        // totalSizeGB,groupAvgSizeGB,groupMaxSizeGB,groupMinSizeGB,Max/Min 的计算是根据 totalRecord,totalLobs 中不为 0 的一项计算的，如果两项都不为0，会出现重复
         CLCsv = new File(CLCSV);
         CLCsv.write("CLName,mainCLName,appName,domain,totalRecord,totalLobs,totalSizeGB,groupAvgSizeGB,groupMaxSizeGB,groupMinSizeGB,Max/Min,groupNum,groups" + '\n');
         // 输出表类型维度 csv: 表类型(主表)，应用名，最后一个时间分区增量数据，时间分区平均数据量，时间分区最大数据量，时间分区最少数据量，最大/最小偏差值，总数据量，总数据组，表个数，总分区数
         CLTypeCsv = new File(CLTYPECSV);
-        CLTypeCsv.write("type,appName,lastTimeSizeGB,timeAvgSizeGB,timeMaxSizeGB,timeMinSizeGB,timeMax/timeMin,totalSizeGB,totalGroupNum,CLCount,totalPartNum" + '\n');
+        CLTypeCsv.write("type,appName,lastCLName,lastTimeSizeGB,timeAvgSizeGB,timeMaxSizeGB,timeMinSizeGB,timeMax/timeMin,totalSizeGB,totalGroupNum,CLCount,totalPartNum" + '\n');
         // 输出表类型维度 csv: 应用名，主表名，创建表名，表类型，域，组个数，挂载字段，挂载上下界，卸载的 MAX 表，pagesize，logpagesize，partition, 索引使用通用还是继承 ,是否主表
         addCLCsv = new File(ADDCLCSV);
-        addCLCsv.write("appName,mainCLName,createCLName,type,domain,groupNum,shardingKey,lowBound,upBound,detachCL,pageSize,lobPageSize,Partition,indexType,isMainCL" + '\n');
+        addCLCsv.write("appName,mainCLName,createCLName,type,domain,groupNum,shardingKey,lowBound,upBound,detachCL,pageSize,lobPageSize,partition,indexType,isMainCL" + '\n');
     } catch (error) {
         logger.except("文件写入出错", error);
         throw error;
     }
 
-    // 默认MAX表为空，所有数据计算都不包含 MAX 表
+    let loop = 0;
+    let cursor;
+    // 输出表维度 information_by_cl.csv
     try {
-        let cursor = db.exec('select * from ' + DATACS + "." + OUTOUTCLNAME);
-        let loop = 0;
-        // 输出表维度 information_by_cl.csv
+        try {
+            cursor = db.exec('select * from ' + DATACS + "." + OUTOUTCLNAME);
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + OUTOUTCLNAME + "] 中数据失败", error);
+            throw error;
+        }
         while(cursor.next()) {
             loop++;
             if (loop % INFOOUTPUTONCE == 0) {
@@ -937,93 +1033,156 @@ function outputCSV() {
             CLCsvLine.push(current.domain);
             CLCsvLine.push(current.totalRecords);
             CLCsvLine.push(current.totalLobs);
-            CLCsvLine.push(current.totalSizeGB.toFixed(FIXNUM));
-            CLCsvLine.push((current.totalSizeGB/current.groupNum).toFixed(FIXNUM));
-            CLCsvLine.push(current.groupMaxSizeGB.toFixed(FIXNUM));
-            CLCsvLine.push(current.groupMinSizeGB.toFixed(FIXNUM));
-            if ((current.groupMaxSizeGB - current.groupMinSizeGB) * 1024 > MAX_MIN) {
-                CLCsvLine.push((current.groupMaxSizeGB/current.groupMinSizeGB).toFixed(FIXNUM));
+            // 区分 LOB 表和元数据表
+            if (current.totalRecords != 0) {
+                CLCsvLine.push(current.totalSizeGB.toFixed(FIXNUM));
+                // avg 不准确，因为 groupNum 没有排除空表
+                CLCsvLine.push((current.totalSizeGB/current.groupNum).toFixed(FIXNUM));
+                CLCsvLine.push(current.groupMaxSizeGB.toFixed(FIXNUM));
+                CLCsvLine.push(current.groupMinSizeGB.toFixed(FIXNUM));
+                if ((current.groupMaxSizeGB - current.groupMinSizeGB) * 1024 > MAX_MIN) {
+                    CLCsvLine.push((current.groupMaxSizeGB/current.groupMinSizeGB).toFixed(FIXNUM));
+                } else {
+                    CLCsvLine.push(0);
+                }
+            } else if (current.totalLobs != 0) {
+                CLCsvLine.push(current.totalLobSizeGB.toFixed(FIXNUM));
+                // avg 不准确，因为 groupNum 没有排除空表
+                CLCsvLine.push((current.totalLobSizeGB/current.groupNum).toFixed(FIXNUM));
+                CLCsvLine.push(current.groupLobMaxSizeGB.toFixed(FIXNUM));
+                CLCsvLine.push(current.groupLobMinSizeGB.toFixed(FIXNUM));
+                if ((current.groupLobMaxSizeGB - current.groupLobMinSizeGB) * 1024 > MAX_MIN) {
+                    CLCsvLine.push((current.groupLobMaxSizeGB/current.groupLobMinSizeGB).toFixed(FIXNUM));
+                } else {
+                    CLCsvLine.push(0);
+                }
             } else {
-                CLCsvLine.push(0);
+                for (let i = 0; i < 5; i++) {
+                    CLCsvLine.push(0);
+                }
             }
+
             CLCsvLine.push(current.groupNum);
-            CLCsvLine.push(current.groupArray);
+            CLCsvLine.push(current.groupArray.sort().join('$'));
             CLCsv.write(CLCsvLine.join(',') + "\n");
         }
-        cursor.close();
-
-        // 表类型维度，主表
-        // cursor = db.exec('select * from ' + DATACS + "." + OUTOUTCLNAME + ' where MainCLName is not null group by MainCLName');
-        // while(cursor.next()) {
-        //     loop++;
-        //     if (loop % 200 == 0) {
-        //         logger.info("已输出 " + loop + " 条信息");
-        //     }
-        //     let CLTypeLine = [];
-        //     let current = cursor.current().toObj();
-        //     CLTypeLine.push(current.modelType);
-        //     CLTypeLine.push(current.appName);
-        //     CLTypeLine.push(tmpCursor.current().toObj().totalSizeGB.toFixed(FIXNUM));
-        //     CLTypeLine.push((current.totalSizeGB / current.totalPartNum).toFixed(FIXNUM));
-        //     CLTypeLine.push(current.timeMaxSizeGB.toFixed(FIXNUM));
-        //     CLTypeLine.push(current.timeMinSizeGB.toFixed(FIXNUM));
-        //     CLTypeLine.push((current.timeMaxSizeGB / current.timeMinSizeGB).toFixed(FIXNUM));
-        //     CLTypeLine.push(current.totalSizeGB.toFixed(FIXNUM));
-        //     // groupNum, 加上前面通过 current 取掉的一个
-        //     CLTypeLine.push(tmpCursor.size() + 1);
-        //     CLTypeLine.push(current.totalPartNum + (current.mainCLName == "" ? 0 : 1) + (current.maxCLName == "" ? 0 : 1));
-        //     CLTypeLine.push(current.totalPartNum + (current.maxCLName == "" ? 0 : 1));
-        //     CLTypeCsv.write(CLTypeLine.join(',') + "\n");
-        //     tmpCursor.close();
-        // }
-        // cursor.close();
-
-        // 表类型维度，普通表
-    
-
-        // // 扩展表维度
-        // let extendFullName = DATACS + "." + EXTENDCLNAME;
-        // cursor = db.exec('select * from ' + extendFullName);
-        // while(cursor.next()) {
-        //     loop++;
-        //     if (loop % 200 == 0) {
-        //         logger.info("已输出 " + loop + " 条信息");
-        //     }
-        //     let addCLCsvLine = [];
-        //     let current = cursor.current().toObj();
-        //     let detailCur = db.exec('select appName,domain,groupNum,modelType,mainCLName,maxCLName,shardingKeyObj from ' + DATACS + "." + MATCHCLNAME + ' where isMainCL = false and CLName = "' + current.prevCLName + '"');
-        //     let detailCurrent = detailCur.current().toObj();
-        //     addCLCsvLine.push(detailCurrent.appName);
-        //     addCLCsvLine.push(detailCurrent.mainCLName);
-        //     addCLCsvLine.push(current.createCLName);
-        //     addCLCsvLine.push(detailCurrent.modelType);
-        //     addCLCsvLine.push(detailCurrent.domain);
-        //     addCLCsvLine.push(detailCurrent.groupNum);
-        //     if (detailCurrent.mainCLName != "") {
-        //         let shardingkeyCur = db.exec('select shardingKeyObj from ' + DATACS + "." + MATCHCLNAME + ' where mainCLName = "' + detailCurrent.mainCLName + '" and isMainCL = true');
-        //         let shardingKeyObj = shardingkeyCur.current().toObj().shardingKeyObj;
-        //         shardingkeyCur.close();
-        //         addCLCsvLine.push(Object.keys(shardingKeyObj)[0]);
-        //     } else {
-        //         addCLCsvLine.push(Object.keys(detailCurrent.shardingKeyObj)[0]);
-        //     }
-        //     addCLCsvLine.push(current.lowBound);
-        //     addCLCsvLine.push(current.upBound);
-        //     addCLCsvLine.push(detailCurrent.maxCLName);
-        //     addCLCsvLine.push(current.pageSize);
-        //     addCLCsvLine.push(current.lobPageSize);
-        //     addCLCsvLine.push(current.partition);
-        //     addCLCsvLine.push("inherit");
-        //     addCLCsvLine.push(false);
-        //     addCLCsv.write(addCLCsvLine + "\n");
-        //     detailCur.close();
-        // }
-        // cursor.close();
     } catch (error) {
-        logger.except("输出 CSV 文件失败", error);
+        logger.except("输出 " + CLCSV + " 文件失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
 
+    try {
+        // 表类型维度 information_by_cltype.csv
+        // lastCL 取的是上一个时间分区的表，因为此时间的数据已经稳定，可以体现增量
+        try {
+            if (SKIPEMPTYBYLASTCL) {
+                // cursor = db.exec('select appName,modelType,last(Name) as lastCLName,last(totalSizeGB) as lastTimeSizeGB,sum(totalSizeGB) as totalSizeGB,count(Name) as totalPartNum,max(totalSizeGB) as timeMaxSizeGB, min(totalSizeGB) as timeMinSizeGB\
+                // ,groupNum,last(totalRecords) as lastTimeRecords,last(totalLobs) as lastTimeLobs,last(totalLobSizeGB) as lastTimeLobSizeGB,sum(totalLobSizeGB) as totalLobSizeGB,max(totalLobSizeGB) as timeMaxLobSizeGB, min(totalLobSizeGB) as timeMinLobSizeGB \
+                // from ' + DATACS + "." + OUTOUTCLNAME + ' where totalRecords <> 0 or totalLobs <> 0 group by appName,modelType');
+                cursor = db.exec('select b.Name as lastCLName,b.totalSizeGB as lastTimeSizeGB,b.totalRecords as lastTimeRecords,b.totalLobs as lastTimeLobs,b.totalLobSizeGB as lastTimeLobSizeGB,\
+                a.appName,a.modelType,a.totalSizeGB,a.totalPartNum,a.timeMaxSizeGB,a.timeMinSizeGB,a.groupNum,a.totalLobSizeGB,a.timeMaxLobSizeGB,a.timeMinLobSizeGB \
+                from (select appName,modelType,sum(totalSizeGB) as totalSizeGB,count(Name) as totalPartNum,max(totalSizeGB) as timeMaxSizeGB, min(totalSizeGB) as timeMinSizeGB\
+                ,groupNum,sum(totalLobSizeGB) as totalLobSizeGB,max(totalLobSizeGB) as timeMaxLobSizeGB, min(totalLobSizeGB) as timeMinLobSizeGB,secondCLName \
+                from ' + DATACS + "." + OUTOUTCLNAME + ' where totalRecords <> 0 or totalLobs <> 0 group by appName,modelType) as a inner join ' + DATACS + "." + OUTOUTCLNAME + ' as b on a.secondCLName = b.Name /*+use_hash()*/');
+            } else {
+                // cursor = db.exec('select appName,modelType,last(Name) as lastCLName,last(totalSizeGB) as lastTimeSizeGB,sum(totalSizeGB) as totalSizeGB,count(Name) as totalPartNum,max(totalSizeGB) as timeMaxSizeGB, min(totalSizeGB) as timeMinSizeGB\
+                // ,groupNum,last(totalRecords) as lastTimeRecords,last(totalLobs) as lastTimeLobs,last(totalLobSizeGB) as lastTimeLobSizeGB,sum(totalLobSizeGB) as totalLobSizeGB,max(totalLobSizeGB) as timeMaxLobSizeGB, min(totalLobSizeGB) as timeMinLobSizeGB \
+                // from ' + DATACS + "." + OUTOUTCLNAME + ' group by appName,modelType');
+                cursor = db.exec('select b.Name as lastCLName,b.totalSizeGB as lastTimeSizeGB,b.totalRecords as lastTimeRecords,b.totalLobs as lastTimeLobs,b.totalLobSizeGB as lastTimeLobSizeGB,\
+                a.appName,a.modelType,a.totalSizeGB,a.totalPartNum,a.timeMaxSizeGB,a.timeMinSizeGB,a.groupNum,a.totalLobSizeGB,a.timeMaxLobSizeGB,a.timeMinLobSizeGB \
+                from (select appName,modelType,sum(totalSizeGB) as totalSizeGB,count(Name) as totalPartNum,max(totalSizeGB) as timeMaxSizeGB, min(totalSizeGB) as timeMinSizeGB\
+                ,groupNum,sum(totalLobSizeGB) as totalLobSizeGB,max(totalLobSizeGB) as timeMaxLobSizeGB, min(totalLobSizeGB) as timeMinLobSizeGB,secondCLName \
+                from ' + DATACS + "." + OUTOUTCLNAME + ' group by appName,modelType) as a inner join ' + DATACS + "." + OUTOUTCLNAME + ' as b on a.secondCLName = b.Name /*+use_hash()*/');
+            }
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + OUTOUTCLNAME + "] 中聚合数据失败", error);
+            throw error;
+        }
+        while(cursor.next()) {
+            loop++;
+            if (loop % INFOOUTPUTONCE == 0) {
+                logger.info("已输出 " + loop + " 条信息");
+            }
+            let CLTypeLine = [];
+            let current = cursor.current().toObj();
+            CLTypeLine.push(current.modelType);
+            CLTypeLine.push(current.appName);
+            CLTypeLine.push(current.lastCLName);
+            // 区分 LOB 表和元数据表
+            if (current.lastTimeRecords != 0) {
+                CLTypeLine.push(current.lastTimeSizeGB.toFixed(FIXNUM));
+                // 这里算的 timeAvgSizeGB 的 totalPartNum 会算上空表，导致没什么意义，后续需要剔除空表再算
+                CLTypeLine.push((current.totalSizeGB / current.totalPartNum).toFixed(FIXNUM));
+                CLTypeLine.push(current.timeMaxSizeGB.toFixed(FIXNUM));
+                CLTypeLine.push(current.timeMinSizeGB.toFixed(FIXNUM));
+                CLTypeLine.push((current.timeMaxSizeGB / current.timeMinSizeGB).toFixed(FIXNUM));
+                CLTypeLine.push(current.totalSizeGB.toFixed(FIXNUM));
+            } else if (current.lastTimeLobs != 0) {
+                CLTypeLine.push(current.lastTimeLobSizeGB.toFixed(FIXNUM));
+                CLTypeLine.push((current.totalLobSizeGB / current.totalPartNum).toFixed(FIXNUM));
+                CLTypeLine.push(current.timeMaxLobSizeGB.toFixed(FIXNUM));
+                CLTypeLine.push(current.timeMinLobSizeGB.toFixed(FIXNUM));
+                CLTypeLine.push((current.timeMaxLobSizeGB / current.timeMinLobSizeGB).toFixed(FIXNUM));
+                CLTypeLine.push(current.totalLobSizeGB.toFixed(FIXNUM));
+            }
+            CLTypeLine.push(current.groupNum);
+            // 普通表表个数等于分区数
+            CLTypeLine.push(current.totalPartNum);
+            CLTypeLine.push(current.totalPartNum);
+            CLTypeCsv.write(CLTypeLine.join(',') + "\n");
+        }
+    } catch (error) {
+        logger.except("输出 " + CLTYPECSV + " 文件失败", error);
+        throw error;
+    } finally {
+        cursor.close();
+    }
+
+    try {
+        // 扩展表维度
+        try {
+            cursor = db.exec('select b.appName,b.MainCLName,a.createCLName,b.modelType,b.domain,b.groupNum,a.shardingKeyObj,a.lowBound,a.upBound,b.maxCLName,b.pageSize,b.lobPageSize,b.Partition \
+            from ' + DATACS + "." + EXTENDCLNAME + ' as a inner join ' + DATACS + "." + OUTOUTCLNAME + ' as b on a.prevCLName = b.Name /*+use_hash()*/')
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + EXTENDCLNAME + "] 和 [" + DATACS + "." + OUTOUTCLNAME + "] 的聚合数据失败", error);
+            throw error;
+        }
+        while(cursor.next()) {
+            loop++;
+            if (loop % INFOOUTPUTONCE == 0) {
+                logger.info("已输出 " + loop + " 条信息");
+            }
+            let addCLCsvLine = [];
+            let current = cursor.current().toObj();
+            addCLCsvLine.push(current.appName);
+            addCLCsvLine.push(current.MainCLName);
+            addCLCsvLine.push(current.createCLName);
+            addCLCsvLine.push(current.modelType);
+            addCLCsvLine.push(current.domain);
+            addCLCsvLine.push(current.groupNum);
+            if (current.shardingKeyObj != undefined) {
+                addCLCsvLine.push(Object.keys(current.shardingKeyObj));
+            } else {
+                addCLCsvLine.push("");
+            }
+            addCLCsvLine.push(current.lowBound);
+            addCLCsvLine.push(current.upBound);
+            addCLCsvLine.push(current.maxCLName);
+            addCLCsvLine.push(current.pageSize);
+            addCLCsvLine.push(current.lobPageSize);
+            addCLCsvLine.push(current.Partition);
+            addCLCsvLine.push("inherit");
+            addCLCsvLine.push(false);
+            addCLCsv.write(addCLCsvLine.join(',') + "\n");
+        }
+    } catch (error) {
+        logger.except("输出 " + ADDCLCSV + " 文件失败", error);
+        throw error;
+    } finally {
+        cursor.close();
+    }
 }
 
 function removeFile(filename) {
@@ -1044,15 +1203,20 @@ function outputModel() {
         throw error;
     }
 
-    let detailFullName = DATACS + "." + DETAILINFOCLNAME;
     let modelJson = {};
     let model_cl_array = [];
     let CLObj = {};
 
     // MAX 表，需要所有主子表都有或没有，如果部分有，部分没有，为 hybrid
     try {
-        let emptyMaxCLSize = db.exec('select maxCLName from ' + detailFullName + ' where mainCLName <> "" and maxCLName = ""').size();
-        let allMaxCLSize = db.exec('select maxCLName from ' + detailFullName + ' where mainCLName <> ""').size();
+        let emptyMaxCLSize;
+        let allMaxCLSize;
+        try {
+            emptyMaxCLSize = db.exec('select maxCLName from ' + DATACS + '.' + OUTOUTCLNAME + ' where MainCLName is not null and maxCLName is null').size();
+            allMaxCLSize = db.exec('select maxCLName from ' + DATACS + '.' + OUTOUTCLNAME + ' where MainCLName is not null').size();
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + OUTOUTCLNAME + "] 中拥有 MAX 分区的主表数据失败", error);
+        }
         if (emptyMaxCLSize == allMaxCLSize) {
             modelJson["include_max_range"] = false;
         } else if (emptyMaxCLSize == 0) {
@@ -1060,77 +1224,123 @@ function outputModel() {
             modelJson["include_max_range"] = true;
         } else {
             modelJson["include_max_range"] = "hybrid";
+            logger.warn("当前模型中部分主子表挂载了 MAX 表，部分主子未挂载 MAX 表");
         }
     } catch (error) {
         logger.except("获取模型 MAX 分区是否存在失败", error);
         throw error;
     }
 
+    let cursor;
     // 主表
     try {
-        let cursor = db.exec('select modelType,findCondition,shardingType,shardingKeyObj from ' + detailFullName + ' where isMainCL = true group by modelType');
+        try {
+            cursor = db.exec('select a.modelType,a.findCondition,a.ShardingType,a.ShardingKey,b.lowBound from \
+            (select modelType,findCondition,ShardingType,ShardingKey,Name from ' + DATACS + '.' + MATCHCATANAME + ' where IsMainCL = true group by modelType) as a \
+            inner join (select mainCLName,lowBound from ' + DATACS + '.' + EXTENDCLNAME + ' group by mainCLName) as b on a.Name = b.mainCLName /*+use_hash()*/');
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + EXTENDCLNAME + "] 和 [" + DATACS + "." + MATCHCATANAME + "] 的聚合数据失败", error);
+            throw error;
+        }
         while (cursor.next()) {
             let current = cursor.current().toObj();
             CLObj['model'] = current.findCondition;
             CLObj['type'] = current.modelType;
             let shardingkey = {};
-            shardingkey["type"] = current.shardingType;
-            shardingkey["key"] = current.shardingKeyObj;
+            shardingkey["type"] = current.ShardingType;
+            // 有些情况可能无法处理
+            if (current.lowBound.length == 4) {
+                let tmpObj = current.ShardingKey;
+                let key = Object.keys(tmpObj);
+                tmpObj[key] = "$YYYY"
+                shardingkey["key"] = tmpObj;
+            } else if (current.lowBound.length == 6) {
+                let tmpObj = current.ShardingKey;
+                let key = Object.keys(tmpObj);
+                tmpObj[key] = "$YYYY$MM"
+                shardingkey["key"] = tmpObj;
+            } else if (current.lowBound.length == 8) {
+                let tmpObj = current.ShardingKey;
+                let key = Object.keys(tmpObj);
+                tmpObj[key] = "$YYYY$MM$dd"
+                shardingkey["key"] = tmpObj;
+            } else if (current.lowBound.length == 14) {
+                let tmpObj = current.ShardingKey;
+                let key = Object.keys(tmpObj);
+                tmpObj[key] = "$YYYY$MM$dd$HH$mm$ss"
+                shardingkey["key"] = tmpObj;
+            } else {
+                shardingkey["key"] = current.ShardingKey;
+            }
             CLObj['shardingkey'] = shardingkey;
             model_cl_array.push(CLObj);
             CLObj = {};
         }
         modelJson['main_cl'] = model_cl_array;
         model_cl_array = [];
-        cursor.close();
     } catch (error) {
         logger.except("获取主表模型信息失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
 
     // 子表
     try {
-        let cursor = db.exec('select modelType,findCondition,shardingType,shardingKeyObj,mainCLName from ' + detailFullName + ' where isMainCL = false and mainCLName <> "" group by modelType');
+        try {
+            cursor = db.exec('select a.appName,a.modelType,a.ShardingType,a.ShardingKey,a.MainCLName,b.subCLFindCondtiton from \
+            (select appName,modelType,ShardingType,ShardingKey,MainCLName from ' + DATACS + '.' + MATCHCATANAME + ' where IsMainCL is null and MainCLName is not null group by modelType) \
+            as a inner join ' + DATACS + '.' + SUBCLFINDCONDCLNAME + ' as b on a.MainCLName = b.mainCLName group by a.modelType,b.subCLFindCondtiton /*+use_hash()*/');
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + MATCHCATANAME + "] 和 [" + DATACS + "." + SUBCLFINDCONDCLNAME + "] 的聚合数据失败", error);
+            throw error;
+        }
         while (cursor.next()) {
             let current = cursor.current().toObj();
-            let tmpCur = db.exec('select subCLFindCondition from ' + detailFullName + ' where isMainCL = true and mainCLName = "' + current.mainCLName + '"').current().toObj();
-            CLObj['model'] = tmpCur.subCLFindCondition;
+            CLObj['model'] = current.subCLFindCondtiton.replace(new RegExp(current.appName, 'g'), "$APPNAME");
             CLObj['type'] = current.modelType;
             let shardingkey = {};
-            shardingkey["type"] = current.shardingType;
-            shardingkey["key"] = current.shardingKeyObj;
+            shardingkey["type"] = current.ShardingType;
+            shardingkey["key"] = current.ShardingKey;
             CLObj['shardingkey'] = shardingkey;
             model_cl_array.push(CLObj);
             CLObj = {};
         }
         modelJson['sub_cl'] = model_cl_array;
         model_cl_array = [];
-        cursor.close();
     } catch (error) {
         logger.except("获取子表模型信息失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
 
     // 普通表
     try {
-        let cursor = db.exec('select modelType,findCondition,shardingType,shardingKeyObj from ' + detailFullName + ' where isMainCL = false and mainCLName = "" group by modelType');
+        try {
+            cursor = db.exec('select modelType,findCondition,ShardingType,ShardingKey from ' + DATACS + '.' + MATCHCATANAME + ' where IsMainCL is null and MainCLName is null group by modelType,findCondition');
+        } catch (error) {
+            logger.except("获取表 [" + DATACS + "." + MATCHCATANAME + "] 中数据失败", error);
+            throw error;
+        }
         while (cursor.next()) {
             let current = cursor.current().toObj();
             CLObj['model'] = current.findCondition;
             CLObj['type'] = current.modelType;
             let shardingkey = {};
-            shardingkey["type"] = current.shardingType;
-            shardingkey["key"] = current.shardingKeyObj;
+            shardingkey["type"] = current.ShardingType;
+            shardingkey["key"] = current.ShardingKey;
             CLObj['shardingkey'] = shardingkey;
             model_cl_array.push(CLObj);
             CLObj = {};
         }
         modelJson['normal_cl'] = model_cl_array;
         model_cl_array = [];
-        cursor.close();
     } catch (error) {
         logger.except("获取普通表模型信息失败", error);
         throw error;
+    } finally {
+        cursor.close();
     }
 
     try {
@@ -1144,6 +1354,7 @@ function outputModel() {
 
 //全部不匹配打一个，匹配到一个也打一个
 function checkModel() {
+    logger.info("开始对比标准模型");
     try {
         let cmd = new Cmd();
         let modelFileArray = cmd.run("ls", MODELDIR).split("\n");
@@ -1240,6 +1451,25 @@ function checkOneModel(baseModelFile) {
     }
 }
 
+function getFrameWork() {
+    let frameWork;
+    try {
+        let size = db.exec('select * from ' + DATACS + '.' + LISTCSNAME + ' where Name = "SCMSYSTEM"').size();
+        if (size == 1) {
+            frameWork = "SCM";
+        } else if (size == 0) {
+            frameWork = "SDB";
+        } else {
+            frameWork = "";
+        }
+    } catch (error) {
+        logger.except("在 CS [" + DATACS + '.' + LISTCSNAME + "] 中检查 CS [SCMSYSTEM] 是否存在失败", error);
+        throw error;
+    }
+
+    return frameWork;
+}
+
 function outputFile() {
     removeFile(CLCSV);
     removeFile(CLTYPECSV);
@@ -1249,82 +1479,182 @@ function outputFile() {
     logger.info("表维度信息文件: " + CLCSV);
     logger.info("表类型维度信息文件: " + CLTYPECSV);
     logger.info("扩展表信息文件: " + ADDCLCSV);
-    // outputModel();
-    // logger.info("模型信息输出完成");
-    // logger.info("模型信息文件: " + CURRENTMODELJSON);
-    // checkModel();
-    // logger.info("模型匹配完成");
+    outputModel();
+    logger.info("模型信息输出完成");
+    logger.info("模型信息文件: " + CURRENTMODELJSON);
+    checkModel();
+    logger.info("模型匹配完成");
 }
 
 function getSnapshot() {
-    logger.info("开始获取 $SNAPSHOT_CATA 数据");
+    let cmd;
     try {
-        if (USELOCAL) {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCATANAME + ' select * from ' + LOCALCATA);
-        } else {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCATANAME + ' select * from $SNAPSHOT_CATA');
-        }
+        cmd = new Cmd();
     } catch (error) {
-        logger.except("查询 $SNAPSHOT_CATA 数据插入到 [" + DATACS + "." + SNAPSHOTCATANAME + "] 失败", error);
+        logger.except("获取 Cmd() 失败", error);
         throw error;
     }
 
-    logger.info("获取完成，开始获取主节点 $SNAPSHOT_CL 数据");
+    logger.info("开始获取 $SNAPSHOT_CATA 数据到文件 " + SNAPSHOTCATAFILE + " 中");
     try {
-        if (USELOCAL) {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCATANAME + ' select * from ' + LOCALCL);
-        } else {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCLNAME + ' select * from $SNAPSHOT_CL where nodeselect = "primary"');
-        }
+        cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_CATA\\")" > ' + SNAPSHOTCATAFILE);
+        cmd.run('sed -i "\\$d" ' + SNAPSHOTCATAFILE);
     } catch (error) {
-        logger.except("查询 $SNAPSHOT_CL 数据插入到 [" + DATACS + "." + SNAPSHOTCLNAME + "] 失败", error);
+        logger.except("查询 $SNAPSHOT_CATA 数据导出到文件 " + SNAPSHOTCATAFILE + " 失败", error);
         throw error;
     }
 
-    logger.info("获取完成，开始获取主节点 $SNAPSHOT_CS 数据");
+    logger.info("获取完成，开始获取 $SNAPSHOT_CL 数据到文件 " + SNAPSHOTCLFILE + " 中");
     try {
-        if (USELOCAL) {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCATANAME + ' select * from ' + LOCALCS);
+        if (ISPRIMARY) {
+            cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_CL where nodeselect = \\\\\\"primary\\\\\\"\\")" > ' + SNAPSHOTCLFILE);
         } else {
-            db.execUpdate('insert into ' + DATACS + "." + SNAPSHOTCSNAME + ' select * from $SNAPSHOT_CS where nodeselect = "primary"');
+            cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_CL\\")" > ' + SNAPSHOTCLFILE);
         }
+        cmd.run('sed -i "\\$d" ' + SNAPSHOTCLFILE);
     } catch (error) {
-        logger.except("查询 $SNAPSHOT_CS 数据插入到 [" + DATACS + "." + SNAPSHOTCSNAME + "] 失败", error);
+        logger.except("查询 $SNAPSHOT_CL 数据导出到文件 " + SNAPSHOTCLFILE + " 失败", error);
         throw error;
     }
+
+    logger.info("获取完成，开始获取 $SNAPSHOT_CS 数据到文件 " + SNAPSHOTCSFILE + " 中");
+    try {
+        if (ISPRIMARY) {
+            cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_CS where nodeselect = \\\\\\"primary\\\\\\"\\")" > ' + SNAPSHOTCSFILE);
+        } else {
+            cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_CS\\")" > ' + SNAPSHOTCSFILE);
+        }
+        cmd.run('sed -i "\\$d" ' + SNAPSHOTCSFILE);
+    } catch (error) {
+        logger.except("查询 $SNAPSHOT_CS 数据导出到文件 " + SNAPSHOTCSFILE + " 失败", error);
+        throw error;
+    }
+
+    logger.info("获取完成，开始获取 $LIST_CS 数据到文件 " + LISTCSFILE + " 中");
+    try {
+        cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$LIST_CS\\")" > ' + LISTCSFILE);
+        cmd.run('sed -i "\\$d" ' + LISTCSFILE);
+    } catch (error) {
+        logger.except("查询 $LIST_CS 数据导出到文件 " + LISTCSFILE + " 失败", error);
+        throw error;
+    }
+
+    logger.info("获取完成，开始获取 $SNAPSHOT_SYSTEM 数据到文件 " + SNAPSHOTSYSTEMFILE + " 中");
+    try {
+        cmd.run('sdb "db = new Sdb(\\"' + COORDADDR + '\\",' + COORDSVC + ',\\"' + DBUSER + '\\",\\"' + DBPASSWORD + '\\")";sdb "db.exec(\\"select * from \\$SNAPSHOT_SYSTEM\\")" > ' + SNAPSHOTSYSTEMFILE);
+        cmd.run('sed -i "\\$d" ' + SNAPSHOTSYSTEMFILE);
+    } catch (error) {
+        logger.except("查询 $SNAPSHOT_SYSTEM 数据导出到文件 " + SNAPSHOTSYSTEMFILE + " 失败", error);
+        throw error;
+    }
+
     logger.info("获取完成");
 }
 
+function importSnapshotFile() {
+    let cmd;
+    try {
+        cmd = new Cmd();
+    } catch (error) {
+        logger.except("获取 Cmd() 失败", error);
+        throw error;
+    }
+
+    try {
+        cmd.run('ls ' + SNAPSHOTCATAFILE);
+    } catch (error) {
+        logger.except("$SNAPSHOT_CATA 数据文件 " + SNAPSHOTCATAFILE + " 不存在", error);
+        throw error;
+    }
+
+    try {
+        cmd.run('ls ' + SNAPSHOTCLFILE);
+    } catch (error) {
+        logger.except("$SNAPSHOT_CL 数据文件 " + SNAPSHOTCLFILE + " 不存在", error);
+        throw error;
+    }
+
+    try {
+        cmd.run('ls ' + LISTCSFILE);
+    } catch (error) {
+        logger.except("$LIST_CS 数据文件 " + LISTCSFILE + " 不存在", error);
+        throw error;
+    }
+
+    logger.info("导入 $SNAPSHOT_CATA 数据文件 " + SNAPSHOTCATAFILE + " 到表 " + SNAPSHOTCATANAME + " 中");
+    try {
+        cmd.run('sdbimprt --hosts "' + COORDADDR + ':' + COORDSVC + '" --type json -c ' + DATACS + ' -l ' + SNAPSHOTCATANAME + ' --user ' + DBUSER + ' --password ' + DBPASSWORD + ' --file ' + SNAPSHOTCATAFILE);
+    } catch (error) {
+        logger.except("导入 $SNAPSHOT_CATA 数据文件 " + SNAPSHOTCATAFILE + " 到表 " + SNAPSHOTCATANAME + " 失败", error);
+        throw error;
+    }
+
+    logger.info("导入 $SNAPSHOT_CL 数据文件 " + SNAPSHOTCLFILE + " 到表 " + SNAPSHOTCLNAME + " 中");
+    try {
+        cmd.run('sdbimprt --hosts "' + COORDADDR + ':' + COORDSVC + '" --type json -c ' + DATACS + ' -l ' + SNAPSHOTCLNAME + ' --user ' + DBUSER + ' --password ' + DBPASSWORD + ' --file ' + SNAPSHOTCLFILE);
+    } catch (error) {
+        logger.except("导入 $SNAPSHOT_CL 数据文件 " + SNAPSHOTCLFILE + " 到表 " + SNAPSHOTCLNAME + " 失败", error);
+        throw error;
+    }
+
+    logger.info("导入 $LIST_CS 数据文件 " + LISTCSFILE + " 到表 " + LISTCSNAME + " 中");
+    try {
+        cmd.run('sdbimprt --hosts "' + COORDADDR + ':' + COORDSVC + '" --type json -c ' + DATACS + ' -l ' + LISTCSNAME + ' --user ' + DBUSER + ' --password ' + DBPASSWORD + ' --file ' + LISTCSFILE);
+    } catch (error) {
+        logger.except("导入 $LIST_CS 数据文件 " + LISTCSFILE + " 到表 " + LISTCSNAME + " 失败", error);
+        throw error;
+    }
+}
+
 function start() {
-    // 获取 SNAPSHOT_CATA,CL,CS 到工具创建的临时数据库
-    getSnapshot();
-
-    // 获取主表名
-    let mainCLSize = findCL(MAIN_CL_ARRAY, "MainSubCL");
-    logger.info("解析主表完成，主表数量为：" + mainCLSize);
+    try {
+        let frameWork = getFrameWork();
+        if (frameWork == "SDB") {
+            logger.info("当前业务部署架构为: SDB");
+        } else if (frameWork == "SCM") {
+            logger.info("当前业务部署架构为: SCM");
+        } else {
+            logger.warn("无法确定当前业务部署架构");
+        }
     
-    // 获取普通表名
-    let normalCLSize = findCL(NORMAL_CL_ARRAY, "NormalCL");
-    logger.info("解析普通表完成，普通表数量为：" + normalCLSize);
-
-    // 获取全量子表
-    let fullSubCLSize = getFullSubCLInfo();
-    logger.info("获取全部子表完成，数量为：" + fullSubCLSize);
-
-    // 获取 CL 下的其他信息
-    logger.info("开始获取表信息");
-    getCLInfo();
-    // 计算普通表扩展名
-    getNormalCLExtendName();
-    logger.info("获取表信息完成，开始生成文件");
-    // 输出文件
-    outputFile();
+        logger.info("开始解析主表名");
+        // 获取主表名
+        let mainCLSize = findCL(MAIN_CL_ARRAY, "MainSubCL");
+        logger.info("解析主表完成，主表数量为：" + mainCLSize);
+        
+        logger.info("开始解析普通表名");
+        // 获取普通表名
+        let normalCLSize = findCL(NORMAL_CL_ARRAY, "NormalCL");
+        logger.info("解析普通表完成，普通表数量为：" + normalCLSize);
+    
+        logger.info("开始获取子表");
+        // 获取全量子表
+        let fullSubCLSize = getFullSubCLInfo();
+        logger.info("获取全部子表完成，数量为：" + fullSubCLSize);
+    
+        // 获取 CL 下的其他信息
+        logger.info("开始获取表信息");
+        getNormalCLExtendName();
+        getCLInfo();
+        logger.info("获取表信息完成，开始生成文件");
+        // 输出文件
+        outputFile();
+    } catch (error) {
+        throw error;
+    }
 }
 
 function checkAllKeyWord() {
-    checkKeyWord(MAIN_CL_ARRAY);
-    checkKeyWord(NORMAL_CL_ARRAY);
-    checkKeyWord(DATE_FORMAT_ARRAY);
+    if (!checkKeyWord(MAIN_CL_ARRAY)) {
+        return false;
+    }
+    if (!checkKeyWord(NORMAL_CL_ARRAY)) {
+        return false;
+    }
+    if (!checkKeyWord(DATE_FORMAT_ARRAY)) {
+        return false;
+    }
+    return true;
 }
 
 // 检查关键字，如果有前缀相同的关键字，下面的逻辑会误判，目前没有，后面需要注意
@@ -1350,7 +1680,21 @@ function checkKeyWord(checkWordArray) {
         if (dollorCount != keyWordCount) {
             let content = "在 " + checkWord + " 中检查到未匹配到关键字的 $ 符号，请检查 conf/args.js 文件中配置";
             logger.error(content);
-            throw new Error(content);
+            return false;
+        }
+    }
+    return true;
+}
+
+function initDataCL(CLName) {
+    try {
+        db.getCS(DATACS).createCL(CLName);
+    } catch (error) {
+        if (error == -22) {
+            db.getCS(DATACS).getCL(CLName).truncate();
+        } else {
+            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + CLName + "] 失败", error);
+            throw error;
         }
     }
 }
@@ -1363,20 +1707,15 @@ function initDataCS() {
     }
     // 如果 CS 不存在，则创建，存在则检查里面的 CL 命名是否符合预期（之前运行残留的）
     try {
-        let regex = "";
-        let cs = db.getCS(DATACS);
-        let CLCount = cs.listCollections().size();
-        let CLMatchCount = db.list(4,{Name:{"$regex": "^" + DATACS + "\." + EXTENDCLNAME + "_[0-9]{14}$"}}).size();
-        // CLMatchCount += db.list(4,{Name:{"$regex": "^" + DATACS + "\." + DETAILINFOCLNAME + "_[0-9]{14}$"}}).size();
-        // CLMatchCount += db.list(4,{Name:{"$regex": "^" + DATACS + "\." + SNAPSHOTCATANAME + "_[0-9]{14}$"}}).size();
-        // CLMatchCount += db.list(4,{Name:{"$regex": "^" + DATACS + "\." + SNAPSHOTCLNAME + "_[0-9]{14}$"}}).size();
-        // CLMatchCount += db.list(4,{Name:{"$regex": "^" + DATACS + "\." + SNAPSHOTCSNAME + "_[0-9]{14}$"}}).size();
-        // CLMatchCount += db.list(4,{Name:{"$regex": "^" + DATACS + "\." + GROUPSIZENAME + "$"}}).size();
-        // if (CLCount != 0 && CLMatchCount != CLCount) {
-        //     let content = "在 CS [" + DATACS + "] 中检查到非此工具创建的 CL，请确认";
-        //     logger.error(content);
-        //     throw new Error(content);
-        // }
+        let cursor = db.getCS(DATACS).listCollections();
+        while (cursor.next()) {
+            let current = cursor.current().toObj();
+            if (-1 == TOOLCLARRAY.indexOf(current['Name'].split('.')[1])) {
+                let content = "在 DATACS [" + DATACS + "] 中检查到非此工具创建的 CL [" + current['Name'] + "] ，请确认";
+                logger.error(content);
+                throw new Error(content);
+            }
+        }
     } catch (error) {
         if (error == -34) {
             db.createCS(DATACS);
@@ -1386,201 +1725,40 @@ function initDataCS() {
         }
     }
 
-    // 创建当前时间的 CL
-    let dateStr = date2Str(new Date(), true);
-    //dateStr = "";
-    let CLNameArray = [];
-    SNAPSHOTCATANAME = SNAPSHOTCATANAME + "_" + dateStr;
-    try {
-        db.getCS(DATACS).createCL(SNAPSHOTCATANAME);
-        CLNameArray.push(SNAPSHOTCATANAME);
-    } catch (error) {
-        logger.except("在 DATACS [" + DATACS + "] 下创建 [" + SNAPSHOTCATANAME + "] 失败", error);
-        throw error;
-    }
-
-    SNAPSHOTCLNAME = SNAPSHOTCLNAME + "_" + dateStr;
-    try {
-        db.getCS(DATACS).createCL(SNAPSHOTCLNAME);
-        CLNameArray.push(SNAPSHOTCLNAME);
-    } catch (error) {
-        logger.except("在 DATACS [" + DATACS + "] 下创建 [" + SNAPSHOTCLNAME + "] 失败", error);
-        throw error;
-    }
-
-    SNAPSHOTCSNAME = SNAPSHOTCSNAME + "_" + dateStr;
-    try {
-        db.getCS(DATACS).createCL(SNAPSHOTCSNAME);
-        CLNameArray.push(SNAPSHOTCSNAME);
-    } catch (error) {
-        logger.except("在 DATACS [" + DATACS + "] 下创建 [" + SNAPSHOTCSNAME + "] 失败", error);
-        throw error;
-    }
-
-    try {
-        db.getCS(DATACS).createCL(EXTENDCLNAME);
-        CLNameArray.push(EXTENDCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(EXTENDCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + EXTENDCLNAME + "] 失败", error);
+    for (let i = 0; i < TOOLCLARRAY.length; i++) {
+        try {
+            initDataCL(TOOLCLARRAY[i]);
+        } catch (error) {
             throw error;
         }
     }
 
     try {
-        db.getCS(DATACS).createCL(OUTOUTCLNAME);
-        CLNameArray.push(OUTOUTCLNAME);
+        db.getCS(DATACS).getCL(TMPCLNAME).createIndex("sort",{"value":-1});
     } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(OUTOUTCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + OUTOUTCLNAME + "] 失败", error);
+        if (error != -247) {
+            logger.except("在 [" + DATACS + "." + TMPCLNAME + "] 下创建索引失败", error);
             throw error;
         }
     }
-
-    try {
-        db.getCS(DATACS).createCL(GROUPSIZENAME);
-        CLNameArray.push(GROUPSIZENAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(GROUPSIZENAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + GROUPSIZENAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(CSDOAMINNAME);
-        db.getCS(DATACS).getCL(CSDOAMINNAME).createIndex("sort",{"value":-1})
-        CLNameArray.push(CSDOAMINNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(CSDOAMINNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + CSDOAMINNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(SUBCLFINDCONDCLNAME);
-        db.getCS(DATACS).getCL(SUBCLFINDCONDCLNAME).createIndex("sort",{"value":-1})
-        CLNameArray.push(SUBCLFINDCONDCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(SUBCLFINDCONDCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + SUBCLFINDCONDCLNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(TMPCLNAME);
-        db.getCS(DATACS).getCL(TMPCLNAME).createIndex("sort",{"value":-1})
-        CLNameArray.push(TMPCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(TMPCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + TMPCLNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(CLSIZENAME);
-        CLNameArray.push(CLSIZENAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(CLSIZENAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + CLSIZENAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(MATCHCLNAME);
-        CLNameArray.push(MATCHCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(MATCHCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + MATCHCLNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(MATCHCATANAME);
-        CLNameArray.push(MATCHCATANAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(MATCHCATANAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + MATCHCATANAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(HYBRIDCSCLNAME);
-        CLNameArray.push(HYBRIDCSCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(HYBRIDCSCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + HYBRIDCSCLNAME + "] 失败", error);
-            throw error;
-        }
-    }
-    
-    try {
-        db.getCS(DATACS).createCL(MAINMAXNAME);
-        CLNameArray.push(MAINMAXNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(MAINMAXNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + MAINMAXNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    try {
-        db.getCS(DATACS).createCL(LASTCLNAME);
-        CLNameArray.push(LASTCLNAME);
-    } catch (error) {
-        if (error == -22) {
-            db.getCS(DATACS).getCL(LASTCLNAME).truncate();
-        } else {
-            logger.except("在 DATACS [" + DATACS + "] 下创建 [" + LASTCLNAME + "] 失败", error);
-            throw error;
-        }
-    }
-
-    return CLNameArray;
 }
 
-function removeDataCL(CLNameArray) {
+function removeDataCSCL() {
     if (DROPDATACS == true) {
-        for (let i = 0; i < CLNameArray.length; i++) {
+        for (let i = 0; i < TOOLCLARRAY.length; i++) {
             try {
-                db.getCS(DATACS).dropCL(CLNameArray[i]);
+                db.getCS(DATACS).dropCL(TOOLCLARRAY[i]);
             } catch (error) {
-                logger.except("在 DATACS [" + DATACS + "] 下删除 [" + CLNameArray[i] + "] 失败", error);
-                throw error;
+                if (error != -23) {
+                    logger.except("在 DATACS [" + DATACS + "] 下删除 [" + TOOLCLARRAY[i] + "] 失败", error);
+                    throw error;
+                }
             }
         }
 
         try {
-            //db.dropCS(DATACS,{EnsureEmpty:true});
-            db.dropCS(DATACS);
+            db.dropCS(DATACS,{EnsureEmpty:true});
+            //db.dropCS(DATACS);
         } catch (error) {
             logger.except("删除 DATACS [" + DATACS + "] 失败", error);
             throw error;
@@ -1593,11 +1771,53 @@ function removeDataCL(CLNameArray) {
 */
 
 function main() {
-    checkAllKeyWord();
-    let CLNameArray = initDataCS();
-    start();
-    // 测试使用
-    removeDataCL(CLNameArray);
+    switch (MODE) {
+        case "collect":
+            try {
+                getSnapshot();
+            } catch (error) {
+                throw error;
+            }
+            break;
+        case "run":
+            if (!checkAllKeyWord()) {
+                break;
+            }
+            try {
+                try {
+                    initDataCS();
+                } catch (error) {
+                    logger.except("初始化 DATACS [" + DATACS + "] 失败", error);
+                    throw error;
+                }
+                try {
+                    importSnapshotFile();
+                } catch (error) {
+                    logger.except("导入快照文件到数据库中失败", error);
+                    throw error;
+                }
+                try {
+                    start();
+                } catch (error) {
+                    logger.except("分析模型失败", error);
+                    throw error;
+                }
+            } catch (error) {
+                throw error;
+            } finally {
+                try {
+                    removeDataCSCL();
+                } catch (error) {
+                    logger.except("删除 DATACS [" + DATACS + "] 失败", error);
+                    throw error;
+                }
+            }
+            break;
+        default:
+            let content = "未知的 MODE: " + MODE + " ， 目前仅支持 collect 和 run 两种模式";
+            logger.error(content);
+            throw new Error(content);
+    }
 }
 
 main();

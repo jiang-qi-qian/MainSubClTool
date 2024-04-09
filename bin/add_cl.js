@@ -3,21 +3,20 @@ if (typeof MODE == "undefined" || MODE == null || MODE == "") {
     var MODE = "test";
 }
 
-var ADDCLCONF = "conf/add_cl.csv";
-var CONFIGJSON = "conf/config.json";
-var CURRENTMODEL = "output/current_model.json";
-
+// ------------ 内部变量，不要修改 ------------
 var TOOL = "add_cl";
 importOnce("./args.js");
 importOnce("./general.js");
 
-// 统计数据
+// run 模式统计数据
 var totalModelArray = [];
 var totalCreateCS = 0;
 var totalCreateCL = 0;
+
 // 针对单独类型表的
 var totalCreateCLObj = {};
 
+// rollback 模式统计数据
 var totalRollbackCS = 0;
 var totalRollbackCL = 0;
 var totalRollbackCLObj = {};
@@ -189,19 +188,22 @@ function createCL() {
                 real = true;
             }
 
-            // 优化点
             let autoSplit;
             if (isMainCL) {
                 autoSplit = false;
-            } else {
+            } else if (domain != "" && groupNum != ""){
                 let groupArray = calaGroupArray(groupNum, domain);
                 if (groupArray == "") {
                     // 全域打散
                     autoSplit = true;
                 } else {
                     // 切分到一定数量的组
-                    autoSplit = false;
+                    // 暂时关闭
+                    //autoSplit = false;
+                    autoSplit = true;
                 }
+            } else {
+                autoSplit = true;
             }
 
             // 检查MAX分区是否有数据，没有就卸载MAX分区
@@ -396,19 +398,20 @@ function calaGroupArray(groupNum, domain) {
         let domainGroupNum = domainGroup.length;
 
         if (domainGroupNum == groupNum) {
-            //return "";
+            // 相等则全域打散
+            return "";
         } else if (domainGroupNum < groupNum) {
             let content = "[" + ADDCLCONF + "] 配置文件中 groupNum(" + groupNum + ") 比域 [" + domain + "] 所包含的组数 (" + domainGroupNum + ") 还大，请检查";
             logger.error(content);
             throw new Error(content);
         }
 
-        // 计算合适的组数，对 2 的 n 次方向上取整
+        // 计算合适的组数，对 2 的 n 次方向上取整，比如 groupNum 是 10 个组，域中包含 36 个组，实际会把 CL 落在 2 的 4 次方，16 个组上
         // 先开方，然后向上取整，再平方（没有 log2，换底实现）
         let realGroupNum = Math.pow(2, Math.ceil(Math.log(groupNum)/Math.log(2)));
         //logger.debug(groupNum + " " + realGroupNum);
         if (realGroupNum > domainGroupNum) {
-            // 外层判断全域打散
+            // 如果对 2 的 n 次方向上取整后比域中总组数还大，则全域打散
             return "";
         }
 
@@ -417,7 +420,10 @@ function calaGroupArray(groupNum, domain) {
         domainGroup = domainGroup.sort();
         let i = groupIndex;
         //logger.debug(groupNum, realGroupNum);
-        // 假设总共有 10 个组，第一个表占 8 个，算 0-7，第二个表4个，算 8-9，0-1，以此类推
+        // 假设总共有 10 个组，第一个表占 8 个，算 0-7，第二个表4个，算 8-9，0-1，后续的表以此类推
+        // 这样会出现不均衡的问题
+        //      一是没有关联上每个表的数据量增长
+        //      二是即使假设表的增量数据均衡，也会出现数据在前面的组过多的情况，因为很难会正好每个组分的表数量一致，这种情况下后面的组总是少一张表
         while (realGroupNum--) {
             retGroupArray.push(domainGroup[i].GroupName);
             i++;
@@ -626,6 +632,8 @@ function attach_cl(real, maincl, subcl, shardingKey, lowBound, upBound) {
         let cmd;
         if (upBound == "MAX") {
             cmd = "db.getCS(\"" + maincs_name + "\").getCL(\"" + maincl_name + "\").attachCL(\"" + subcl + "\",{LowBound:{" + shardingKey + ":\"" + lowBound + "\"},UpBound:{" + shardingKey + ":MaxKey()}});"
+        } else if (lowBound == "MIN") {
+            cmd = "db.getCS(\"" + maincs_name + "\").getCL(\"" + maincl_name + "\").attachCL(\"" + subcl + "\",{LowBound:{" + shardingKey + ":MinKey()},UpBound:{" + shardingKey + ":\"" + upBound + "\"}});"
         } else {
             cmd = "db.getCS(\"" + maincs_name + "\").getCL(\"" + maincl_name + "\").attachCL(\"" + subcl + "\",{LowBound:{" + shardingKey + ":\"" + lowBound + "\"},UpBound:{" + shardingKey + ":\"" + upBound + "\"}});"
         }
@@ -739,7 +747,7 @@ function printlnInfo(flag) {
                 logger.info(key + " 类型的 CL 数为: " + totalRollbackCLObj[key]);
             }
         } else {
-            let content = "Unknown mode: " + MODE;
+            let content = "未知的 MODE: " + MODE + " ， 目前仅支持 test, run 和 rollback 三种模式";
             logger.error(content);
             throw new Error(content);
         }

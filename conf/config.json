@@ -2,7 +2,6 @@
     "cl": [
         {
             "type": "DOC",
-            "IsMainCL": true,
             "ShardingKey": {
                 "MainCL": {"RECEIVE_TIME":1},
                 "SubCL": {"CONTENT_ID":1},
@@ -13,7 +12,7 @@
                 "SubCL": "hash",
                 "NormalCL": ""
             },
-            "ReplSize": 2,
+            "ReplSize": 1,
             "Compression": false,
             "CompressionType": "lzw",
             "AutoIndexId": true,
@@ -24,7 +23,6 @@
         },
         {
             "type": "FILE",
-            "IsMainCL": true,
             "ShardingKey": {
                 "MainCL": {"RECEIVE_TIME":1},
                 "SubCL": {"CONTENT_ID":1},
@@ -35,7 +33,7 @@
                 "SubCL": "hash",
                 "NormalCL": ""
             },
-            "ReplSize": 2,
+            "ReplSize": 1,
             "Compression": false,
             "CompressionType": "lzw",
             "AutoIndexId": true,
@@ -46,7 +44,6 @@
         },
         {
             "type": "LOB",
-            "IsMainCL": false,
             "ShardingKey": {
                 "MainCL": "",
                 "SubCL": "",
@@ -57,7 +54,7 @@
                 "SubCL": "",
                 "NormalCL": "hash"
             },
-            "ReplSize": 2,
+            "ReplSize": 1,
             "Compression": false,
             "CompressionType": "lzw",
             "AutoIndexId": true,
@@ -65,28 +62,6 @@
             "StrictDataMode": true,
             "AutoIncrement": "",
             "LobShardingKeyFormat": ""
-        },
-        {
-            "type": "TEST",
-            "IsMainCL": true,
-            "ShardingKey": {
-                "MainCL": {"date":1},
-                "SubCL": {"_id":1},
-                "NormalCL": ""
-            },
-            "ShardingKeyType": {
-                "MainCL": "range",
-                "SubCL": "hash",
-                "NormalCL": ""
-            },
-            "ReplSize": 2,
-            "Compression": false,
-            "CompressionType": "lzw",
-            "AutoIndexId": true,
-            "EnsureShardingIndex": false,
-            "StrictDataMode": true,
-            "AutoIncrement": "",
-            "LobShardingKeyFormat": "YYYYMMDD"
         }
     ],
     "index": [

@@ -2,7 +2,7 @@
     "include_max_range": "hybrid",
     "main_cl": [
       {
-        "model": "$APPNAME.$APPNAME_DOC",
+        "model": "$APPNAME.$APPNAME",
         "type": "DOC",
         "shardingkey": {
           "type": "range",
@@ -14,7 +14,7 @@
     ],
     "sub_cl": [
       {
-        "model": "$APPNAME.$APPNAME_DOC_$YYYY",
+        "model": "$APPNAME.$APPNAME_$YYYY",
         "type": "DOC",
         "shardingkey": {
           "type": "hash",

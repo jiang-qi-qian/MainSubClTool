@@ -37,7 +37,7 @@ function createDomain() {
         if (MODE == "run") {
             try {
                 db.getDomain(domainName);
-                logger.warn("Domain [" + domainName + "(" + groupArray + ")] is exists");
+                logger.warn("域 [" + domainName + "(" + groupArray + ")] 已存在");
                 continue;
             } catch (e) {
                 if (-214 == e) {
@@ -81,7 +81,7 @@ function createDomain() {
         } else if (MODE == "test") {
             logger.info("域名: " + domainName + "，组: (" + groupArray + ")");
         } else {
-            let content = "未知的 MODE: " + MODE;
+            let content = "未知的 MODE: " + MODE + " ， 目前仅支持 test, run 和 rollback 三种模式";
             logger.error(content);
             throw new Error(content);
         }
