@@ -1,0 +1,4 @@
+[
+    { "domainName": "domain_1", "groups": ["group1"] },
+    { "domainName": "domain_2", "groups": ["group1", "group2", "group3"] }
+]

@@ -1,0 +1,44 @@
+{
+    "main_cl": [
+        {
+            "type": "DOC",
+            "model": "$APPNAME.$APPNAME_DOC",
+            "shardingkey": {
+                 "type": "range",
+                 "key": [
+                    {"RECEIVE_TIME": "$YYYY$MM$dd"},
+                    {"RECEIVE_TIME": "$YYYY$MM$dd$HH$mm$ss"}
+                ]
+            }
+        },
+        {
+            "type": "FILE",
+            "model": "$APPNAME.$APPNAME_PART",
+            "shardingkey": {
+                 "type": "range",
+                 "key": [
+                    {"RECEIVE_TIME": "$YYYY$MM$dd"},
+                    {"RECEIVE_TIME": "$YYYY$MM$dd$HH$mm$ss"}
+                ]
+            }
+        }
+    ],
+    "sub_cl": [
+        {
+            "type": "DOC",
+            "model": "$APPNAME_DOC_$DATE.$APPNAME_DOC_$DATE",
+            "shardingkey": {
+                 "type": "hash",
+                 "key": [{"CONTENT_ID": 1}]
+            }
+        },
+        {
+            "type": "FILE",
+            "model": "$APPNAME_PART_$DATE.$APPNAME_PART_$DATE",
+            "shardingkey": {
+                 "type": "hash",
+                 "key": [{"CONTENT_ID": 1}]
+            }
+        }
+    ]
+}

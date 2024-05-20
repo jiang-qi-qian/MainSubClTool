@@ -1,0 +1,113 @@
+{
+    "cl": [
+        {
+            "type": "DOC",
+            "ShardingKey": {
+                "MainCL": {"RECEIVE_TIME":1},
+                "SubCL": {"CONTENT_ID":1},
+                "NormalCL": ""
+            },
+            "ShardingKeyType": {
+                "MainCL": "range",
+                "SubCL": "hash",
+                "NormalCL": ""
+            },
+            "ReplSize": 1,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": ""
+        },
+        {
+            "type": "FILE",
+            "ShardingKey": {
+                "MainCL": {"RECEIVE_TIME":1},
+                "SubCL": {"CONTENT_ID":1},
+                "NormalCL": ""
+            },
+            "ShardingKeyType": {
+                "MainCL": "range",
+                "SubCL": "hash",
+                "NormalCL": ""
+            },
+            "ReplSize": 1,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": ""
+        },
+        {
+            "type": "LOB",
+            "ShardingKey": {
+                "MainCL": "",
+                "SubCL": "",
+                "NormalCL": {"_id":1}
+            },
+            "ShardingKeyType": {
+                "MainCL": "",
+                "SubCL": "",
+                "NormalCL": "hash"
+            },
+            "ReplSize": 1,
+            "Compression": false,
+            "CompressionType": "lzw",
+            "AutoIndexId": true,
+            "EnsureShardingIndex": false,
+            "StrictDataMode": true,
+            "AutoIncrement": "",
+            "LobShardingKeyFormat": ""
+        }
+    ],
+    "index": [
+        {
+            "type": "DOC",
+            "mainCLNeedCreate": false,
+            "index": [
+                {
+                    "name": "primary_index",
+                    "def": "{CONTENT_ID:1,VERSION:1,GROUP_ID:1}",
+                    "unique": true,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                },
+                {
+                    "name": "index1",
+                    "def": "{CONTENT_ID:1}",
+                    "unique": false,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                }
+            ]
+        },
+        {
+            "type": "FILE",
+            "mainCLNeedCreate": false,
+            "index": [
+                {
+                    "name": "primary_index",
+                    "def": "{CONTENT_ID:1,VERSION:1,GROUP_ID:1}",
+                    "unique": true,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                },
+                {
+                    "name": "index1",
+                    "def": "{CONTENT_ID:1}",
+                    "unique": false,
+                    "enforced": false,
+                    "notnull": false,
+                    "notarray": false
+                }
+            ]
+        }
+    ]
+}
