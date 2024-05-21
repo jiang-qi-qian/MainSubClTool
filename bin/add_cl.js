@@ -42,14 +42,7 @@ try {
     throw e;
 }
 
-var modelObj;
-try {
-    let cmd = new Cmd();
-    modelObj = JSON.parse(cmd.run("cat", CURRENTMODEL));
-} catch (e) {
-    logger.except("读取文件 [" + CURRENTMODEL + "] 失败", e);
-    throw e;
-}
+var modelObj = {};
 
 function changDate(str) {
     if (str.search("\\$DATE") == -1) {
@@ -117,6 +110,17 @@ function createCL() {
         let partition = lineArray[12];
         let indexType = lineArray[13];
         let isMainCL = JSON.parse(lineArray[14]);
+
+        // 只有 inherit 模式下才需要读取 current_model 文件
+        if (indexType == "inherit" && Object.keys(modelObj).length == 0) {
+            try {
+                let cmd = new Cmd();
+                modelObj = JSON.parse(cmd.run("cat", CURRENTMODEL));
+            } catch (e) {
+                logger.except("读取文件 [" + CURRENTMODEL + "] 失败", e);
+                throw e;
+            }
+        }
 
         if (-1 == totalModelArray.indexOf(appName)) {
             totalModelArray.push(appName);

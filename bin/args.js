@@ -33,7 +33,7 @@ var DATE_FORMAT_ARRAY = ["$YYYY","$YYYY$MM","$YYYY$MM$dd"];
 var ADDCLCONF = "output/add_cl.csv";
 //  CL 和 INDEX 通用配置文件路径，默认值为 conf/config.json
 var CONFIGJSON = "conf/config.json";
-//  当前模型文件路径，默认值为 output/current_model.json
+//  当前模型文件路径，扩建现有表时需要此文件，新建应用表不需要此文件，默认值为 output/current_model.json
 var CURRENTMODEL = "output/current_model.json";
 //  ----------------------------------------
 
@@ -47,8 +47,3 @@ var DOMIANCSV = "conf/domain.csv";
 // $APPNAME 表示为业务应用名，$DATE 表示匹配 DATE_FORMAT_ARRAY 数组中所有的时间格式, 其余为时间格式标识
 var KEYWORDARRAY = ["$APPNAME","$DATE","$YYYY","$MM","$dd"];
 //  ----------------------------------------
-
-
-// shanghai bank
-MAIN_CL_ARRAY = [{"FILE":"$APPNAME_META.FILE"}];
-NORMAL_CL_ARRAY = [{"LOB":"$APPNAME_LOB_$YYYY$MM.LOB_$YYYY$MM"}];
