@@ -24,10 +24,6 @@ var SNAPSHOTCSFILE = "output/snapshot_cs.out";
 var LISTCSFILE = "output/list_cs.out";
 var SNAPSHOTSYSTEMFILE = "output/snapshot_system.out";
 
-SNAPSHOTCATAFILE = "/data/code/cl_tool/shanghai/20240403_inspect/snapshotcata.txt";
-SNAPSHOTCLFILE = "/data/code/cl_tool/shanghai/20240403_inspect/snapshotcl.txt";
-LISTCSFILE = "/data/code/cl_tool/shanghai/20240403_inspect/listcs.txt";
-
 // 读取的文件路径
 var CONFIGJSON = "conf/config.json";
 var MODELDIR = "conf/model/";
@@ -1771,6 +1767,23 @@ function removeDataCSCL() {
 */
 
 function main() {
+    try {
+        createDir('log');
+        createDir('output');
+    } catch (error) {
+        let content = "无法在当前目录下创建目录 log/ 和 output/";
+        logger.error(content);
+        throw new Error(content);
+    }
+
+    try {
+        openLog();
+    } catch (error) {
+        let content = "无法在打开日志文件 " + log_file;
+        logger.error(content);
+        throw new Error(content);
+    }
+
     switch (MODE) {
         case "collect":
             try {

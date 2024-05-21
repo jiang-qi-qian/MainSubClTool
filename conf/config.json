@@ -45,13 +45,13 @@
         {
             "type": "LOB",
             "ShardingKey": {
-                "MainCL": "",
-                "SubCL": "",
+                "MainCL": {"date": 1},
+                "SubCL": {"_id":1},
                 "NormalCL": {"_id":1}
             },
             "ShardingKeyType": {
-                "MainCL": "",
-                "SubCL": "",
+                "MainCL": "range",
+                "SubCL": "hash",
                 "NormalCL": "hash"
             },
             "ReplSize": 1,

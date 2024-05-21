@@ -46,7 +46,7 @@ var modelObj = {};
 
 function changDate(str) {
     if (str.search("\\$DATE") == -1) {
-        return [str];
+        return [str.replace(new RegExp("\\$YYYY", "ig"), "[1-2]\\d{3}").replace(new RegExp("\\$MM", "g"), "[0-1][0-9]").replace(new RegExp("\\$dd", "ig"), "[0-3][0-9]")];
     }
 
     let retArray = [];
@@ -360,7 +360,10 @@ function createCL() {
 
             // 如果集合空间为空，移除集合空间
             try {
-                let size = db.getCS(createCS).listCollections().size();
+                // 旧版本不兼容
+                // let size = db.getCS(createCS).listCollections().size();
+                // 旧版本兼容
+                let size = db.list(4,{Name: {"$regex": '^' + createCS + '\\..*'}},{Name:1}).size();
                 if (size == 0) {
                     // 双保险
                     db.dropCS(createCS,{EnsureEmpty:true});
@@ -762,6 +765,23 @@ function printlnInfo(flag) {
     start
 */
 function main() {
+    try {
+        createDir('log');
+        createDir('output');
+    } catch (error) {
+        let content = "无法在当前目录下创建目录 log/ 和 output/";
+        logger.error(content);
+        throw new Error(content);
+    }
+
+    try {
+        openLog();
+    } catch (error) {
+        let content = "无法在打开日志文件 " + log_file;
+        logger.error(content);
+        throw new Error(content);
+    }
+
     try {
         createCL();
     } catch (error) {

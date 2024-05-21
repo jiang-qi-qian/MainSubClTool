@@ -1,4 +1,3 @@
 [
-    { "domainName": "domain_1", "groups": ["group1"] },
-    { "domainName": "domain_2", "groups": ["group1", "group2", "group3"] }
+    { "domainName": "domain_mid", "groups": ["group1", "group2", "group3"] }
 ]

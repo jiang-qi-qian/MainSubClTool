@@ -13,14 +13,14 @@ var ISPRIMARY = true;
 //  如某个应用最后一个表为 APP_2022, 此参数需要设置为 2022
 var STARTYEAR = 2021;
 //  扩展分区结束时间，用于限制扩建表生成的数量，格式为 YYYYMMdd
-var ENDTIME = "20250501";
+var ENDTIME = "20260101";
 //  sdb cs 名，工具运行中会建 CL 并插入数据，请确保没有其他表，默认值 MODEL
 var DATACS = "MODEL";
 //  分析运行结束后是否删除 DATACS，默认值 true
-var DROPDATACS = false;
+var DROPDATACS = true;
 //  主表名，用于在集群中查找以下规则命名的主表
 //  其中 key 代表表类型，value 代表表命名格式
-var MAIN_CL_ARRAY = [{"DOC":"$APPNAME.$APPNAME"}];
+var MAIN_CL_ARRAY = [{"DOC":"$APPNAME_DOC.$APPNAME_DOC"},{"FILE":"$APPNAME_FILE.$APPNAME_FILE"}];
 //  普通表名，用于在集群中查找以下规则命名的普通表，如同一类型下（LOB）有多种时间格式的表，可使用 $DATE
 var NORMAL_CL_ARRAY = [{"LOB":"$APPNAME_LOB_$YYYY.$APPNAME_LOB_$YYYY"}];
 //  $DATE 关键字搜索列表，子表命名中时间字符串搜索列表
@@ -28,9 +28,9 @@ var NORMAL_CL_ARRAY = [{"LOB":"$APPNAME_LOB_$YYYY.$APPNAME_LOB_$YYYY"}];
 var DATE_FORMAT_ARRAY = ["$YYYY","$YYYY$MM","$YYYY$MM$dd"];
 //  ----------------------------------------
 
-//  --------- add.js 工具参数 ---------
+//  --------- add_cl.js 工具参数 ---------
 //  创建 CL 的 CSV 配置文件路径；如果是扩建现有表时，通常为 output/add_cl.csv 工具分析生成文件；如果是新建应用表，通常为 conf/add_cl.csv 模板文件
-var ADDCLCONF = "output/add_cl.csv";
+var ADDCLCONF = "conf/add_cl.csv";
 //  CL 和 INDEX 通用配置文件路径，默认值为 conf/config.json
 var CONFIGJSON = "conf/config.json";
 //  当前模型文件路径，扩建现有表时需要此文件，新建应用表不需要此文件，默认值为 output/current_model.json

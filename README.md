@@ -57,7 +57,7 @@
 - 运行方法，在根目录下执行 `sdb -e 'var MODE = "\<MODE\>"' -f bin/\<TOOL\>.js`
 
 
-##工具目录
+## 工具目录
 ```
 |- bin      
 	|- add_cl.js                创建 CL 的工具
@@ -84,7 +84,7 @@
 ```
 
 
-##工具配置文件
+## 工具配置文件
 - `bin/args.js`
 	- 供所有工具使用。
 	- 基本的连接 SDB 所需参数，以及工具必要参数，某些非必要的参数在各自工具 js 的开头中修改。
@@ -143,13 +143,13 @@
 2. 收集影像平台快照信息
 
 	```
-	sdb -e 'var MODE = "collect"' -f check_model.js
+	sdb -e 'var MODE = "collect"' -f bin/check_model.js
 	```
 
 3. 分析收集到的信息
 
 	```
-	sdb -e 'var MODE = "run"' -f check_model.js
+	sdb -e 'var MODE = "run"' -f bin/check_model.js
 	```
 
 	如果不允许在生产环境上新建库表进行分析，可将上一步收集的信息文件，整个 output 目录取回到测试环境分析。
@@ -160,13 +160,13 @@
 2. 收集影像平台快照信息
 
 	```
-	sdb -e 'var MODE = "collect"' -f check_model.js
+	sdb -e 'var MODE = "collect"' -f bin/check_model.js
 	```
 
 3. 分析收集到的信息
 
 	```
-	sdb -e 'var MODE = "run"' -f check_model.js
+	sdb -e 'var MODE = "run"' -f bin/check_model.js
 	```
 
 	如果不允许在生产环境上新建库表进行分析，可将上一步收集的信息文件，整个 output 目录取回到测试环境分析。
@@ -174,36 +174,36 @@
 4. 根据实际需求，使用工具 bin/create_domain.js 新建域 
 	- 测试新建域的信息
 		```
-		sdb -e 'var MODE = "test"' -f create_domain.js
+		sdb -e 'var MODE = "test"' -f bin/create_domain.js
 		```
 
     - 新建域
 		```
-		sdb -e 'var MODE = "run"' -f create_domain.js
+		sdb -e 'var MODE = "run"' -f bin/create_domain.js
 		```
 
     - 如果建域过程中出现问题需要回滚（仅能回滚空域）
 		```
-		sdb -e 'var MODE = "rollback"' -f create_domain.js
+		sdb -e 'var MODE = "rollback"' -f bin/create_domain.js
 		```
-5. 根据实际需求，修改生成文件 `conf/add_cl.csv` 中建表的配置，比如
+5. 根据实际需求，修改生成文件 `output/add_cl.csv` 中建表的配置，比如
 	- 只想扩建部分表，删除其他表信息
 	- 修改扩建表的配置
 6. 修改 conf/config.json 配置文件，确定新建表及索引的通用配置参数
 7. 使用工具 bin/add_cl.js 扩建 CL
 	- 测试扩建表的信息
 		```
-		sdb -e 'var MODE = "test"' -f add_cl.js
+		sdb -e 'var MODE = "test"' -f bin/add_cl.js
 		```
 
 	- 扩建表
 		```
-		sdb -e 'var MODE = "run"' -f add_cl.js
+		sdb -e 'var MODE = "run"' -f bin/add_cl.js
 		```
 
 	- 如果建表过程中出现问题需要回滚（仅能回滚空 CL 和空 CS）
 		```
-		sdb -e 'var MODE = "rollback"' -f add_cl.js
+		sdb -e 'var MODE = "rollback"' -f bin/add_cl.js
 		```
 
 
@@ -212,7 +212,7 @@
 2. 根据实际需求，使用工具 bin/create_domain.js 新建域
 	- 测试新建域的信息
 		```
-		sdb -e 'var MODE = "test"' -f create_domain.js
+		sdb -e 'var MODE = "test"' -f bin/create_domain.js
 		```
 
     - 新建域
@@ -221,25 +221,24 @@
 		```
     - 如果建域过程中出现问题需要回滚（仅能回滚空域）
 		```
-		sdb -e 'var MODE = "rollback"' -f create_domain.js
+		sdb -e 'var MODE = "rollback"' -f bin/create_domain.js
 		```
-5. 根据实际需求，修改生成文件 `conf/add_cl.csv` 中建表的配置，比如
-	- 只想扩建部分表，删除其他表信息
-	- 修改扩建表的配置
+5. 根据实际需求，修改模板文件 `conf/add_cl.csv` 中建表的配置，比如
+	- 修改新建表的配置
 6. 修改 conf/config.json 配置文件，确定新建表及索引的通用配置参数
 7. 使用工具 bin/add_cl.js 新建 CL
 	-  测试新建应用的表信息
 		```
-		sdb -e 'var MODE = "test"' -f add_cl.js
+		sdb -e 'var MODE = "test"' -f bin/add_cl.js
 		```
 
 	- 新建应用表
 		```
-		sdb -e 'var MODE = "run"' -f add_cl.js
+		sdb -e 'var MODE = "run"' -f bin/add_cl.js
 		```
 
 	- 如果建表过程中出现问题需要回滚（仅能回滚空 CL 和空 CS）
 		```
-		sdb -e 'var MODE = "rollback"' -f add_cl.js
+		sdb -e 'var MODE = "rollback"' -f bin/add_cl.js
 		```
 

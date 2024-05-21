@@ -93,6 +93,23 @@ function createDomain() {
 */
 
 function main() {
+    try {
+        createDir('log');
+        createDir('output');
+    } catch (error) {
+        let content = "无法在当前目录下创建目录 log/ 和 output/";
+        logger.error(content);
+        throw new Error(content);
+    }
+
+    try {
+        openLog();
+    } catch (error) {
+        let content = "无法在打开日志文件 " + log_file;
+        logger.error(content);
+        throw new Error(content);
+    }
+
     createDomain();
 }
 

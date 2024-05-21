@@ -27,13 +27,6 @@ Date.prototype.Format = function (fmt) { // author: meizz
 var log_file = 'log/' + TOOL + "_" + MODE + "_" + new Date().Format("yyyy-MM-dd hh:mm:ss") + ".log";
 var log;
 
-try {
-    log = new File(log_file);
-    log.seek(0, 'e');
-} catch (e) {
-    throw e;
-}
-
 /**
  * @discription :  初始化日志对象
  * @author: zhonghuajun
@@ -98,4 +91,29 @@ const logger = {
  */
 function tab() {
     return Array.prototype.slice.call(arguments).join(",")
+}
+
+function createDir(dirName) {
+    try {
+        if (File.exist(dirName)) {
+            if (!File.isDir(dirName)) {
+                let content = "当前目录下存在普通文件 " + dirName + ", 无法创建目录";
+                logger.error(content);
+                throw new Error(content);
+            }
+        } else {
+            File.mkdir(dirName);
+        }
+    } catch (error) {
+        throw error;
+    }
+}
+
+function openLog() {
+    try {
+        log = new File(log_file);
+        log.seek(0, 'e');
+    } catch (e) {
+        throw e;
+    }
 }
